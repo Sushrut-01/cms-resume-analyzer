@@ -1,0 +1,43 @@
+version: "3.9"
+
+services:
+
+  # ── FastAPI Application ──────────────────────────────────────────────────
+  app:
+    build: .
+    container_name: cms_app
+    ports:
+      - "8000:8000"
+    environment:
+      - DATABASE_URL=postgresql://cms_user:cms_password@db:5432/cms_db
+      - UPLOAD_FOLDER=/app/uploads
+    volumes:
+      - uploads_data:/app/uploads        # resumes persist across restarts
+      - ./backend/ai_config.json:/app/ai_config.json   # AI provider settings persist
+    depends_on:
+      db:
+        condition: service_healthy
+    restart: unless-stopped
+
+  # ── PostgreSQL Database ──────────────────────────────────────────────────
+  db:
+    image: postgres:15-alpine
+    container_name: cms_db
+    environment:
+      POSTGRES_USER: cms_user
+      POSTGRES_PASSWORD: cms_password
+      POSTGRES_DB: cms_db
+    volumes:
+      - postgres_data:/var/lib/postgresql/data   # DB persists across restarts
+    ports:
+      - "5432:5432"      # expose if you want direct DB access via pgAdmin
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U cms_user -d cms_db"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
+volumes:
+  postgres_data:    # stores all candidate/JD data
+  uploads_data:     # stores all uploaded resume PDFs

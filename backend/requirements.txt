@@ -1,0 +1,27 @@
+# Web framework
+fastapi>=0.110.0
+uvicorn[standard]>=0.29.0
+python-multipart>=0.0.9
+
+# Database
+sqlalchemy>=2.0.0
+psycopg2-binary>=2.9.9      # PostgreSQL driver (production)
+# sqlite is built into Python — no install needed (dev/local)
+
+# PDF extraction
+pymupdf>=1.24.0              # fitz — fast PDF text extraction
+
+# Word document generation
+python-docx>=1.1.0
+
+# HTTP calls (Ollama / Gemini / Azure OpenAI)
+requests>=2.31.0
+
+# Environment variables
+python-dotenv>=1.0.0
+
+# Semantic similarity — hybrid CV alignment (Phase 1)
+# Tier 1 (best quality): neural embeddings, ~22 MB model download on first use
+sentence-transformers>=2.7.0
+# Tier 2 (lightweight fallback): TF-IDF cosine — used if sentence-transformers unavailable
+scikit-learn>=1.3.0

@@ -1,0 +1,524 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>CMS TalentAI — UI Preview</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.2/babel.min.js"></script>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font-family: 'Inter', 'Segoe UI', sans-serif; background: #f0f2f5; }
+  ::-webkit-scrollbar { width: 5px; }
+  ::-webkit-scrollbar-thumb { background: #ddd; border-radius: 10px; }
+  @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+  @keyframes fadeIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
+  .fade-in { animation: fadeIn 0.25s ease; }
+</style>
+</head>
+<body>
+<div id="root"></div>
+<script type="text/babel">
+const { useState } = React;
+
+/* ─── Design tokens ────────────────────────────────── */
+const C = {
+  /* surfaces */
+  bg: "#f0f2f5",
+  card: "#ffffff",
+  sidebar: "#0f172a",        /* deep navy */
+  sidebarHover: "#1e293b",
+  sidebarActive: "#1e3a5f",
+
+  /* brand */
+  primary: "#e63946",
+  primarySoft: "#fff1f2",
+  primaryGrad: "linear-gradient(135deg, #e63946 0%, #c1121f 100%)",
+
+  /* accents */
+  teal: "#0d9488",
+  tealSoft: "#f0fdfa",
+  tealGrad: "linear-gradient(135deg, #0d9488 0%, #0f766e 100%)",
+
+  purple: "#7c3aed",
+  purpleSoft: "#f5f3ff",
+  purpleGrad: "linear-gradient(135deg, #7c3aed 0%, #6d28d9 100%)",
+
+  amber: "#d97706",
+  amberSoft: "#fffbeb",
+  amberGrad: "linear-gradient(135deg, #f59e0b 0%, #d97706 100%)",
+
+  blue: "#2563eb",
+  blueSoft: "#eff6ff",
+  blueGrad: "linear-gradient(135deg, #3b82f6 0%, #2563eb 100%)",
+
+  /* text */
+  text: "#0f172a",
+  textSub: "#475569",
+  muted: "#94a3b8",
+
+  /* borders */
+  border: "#e2e8f0",
+  borderSoft: "#f1f5f9",
+};
+
+const font = { head: "'Georgia', serif", body: "'Inter','Segoe UI',sans-serif", mono: "'JetBrains Mono','Courier New',monospace" };
+
+/* ─── Mock data ─────────────────────────────────────── */
+const CANDIDATES = [
+  { id: 1, name: "Priya Sharma",    role: "Java Developer",     score: 92, status: "Approved",      company: "Infosys",    recruiter: "Neha Joshi",  jd: "JP Morgan – Java Dev" },
+  { id: 2, name: "Rahul Mehta",     role: ".NET Developer",     score: 84, status: "Bot Analyzed",   company: "Wipro",      recruiter: "Amit Shah",   jd: "Citi Bank – .NET" },
+  { id: 3, name: "Ananya Iyer",     role: "Data Engineer",      score: 78, status: "Bot Analyzed",   company: "TCS",        recruiter: "Neha Joshi",  jd: "Amazon – Data Eng" },
+  { id: 4, name: "Vikram Nair",     role: "DevOps Engineer",    score: 71, status: "Pending Review", company: "HCL",        recruiter: "Ravi Kumar",  jd: "AWS – DevOps" },
+  { id: 5, name: "Sonal Gupta",     role: "React Developer",    score: 88, status: "Approved",       company: "Mindtree",   recruiter: "Amit Shah",   jd: "Stripe – React Dev" },
+  { id: 6, name: "Kiran Rao",       role: "Java Developer",     score: 65, status: "Pending Review", company: "Mphasis",    recruiter: "Ravi Kumar",  jd: "JP Morgan – Java Dev" },
+  { id: 7, name: "Deepa Menon",     role: "Business Analyst",   score: 90, status: "Approved",       company: "Accenture",  recruiter: "Neha Joshi",  jd: "HSBC – BA" },
+  { id: 8, name: "Arjun Kapoor",    role: "Cloud Architect",    score: 76, status: "Bot Analyzed",   company: "IBM",        recruiter: "Amit Shah",   jd: "Microsoft – Cloud" },
+];
+
+/* ─── Helpers ───────────────────────────────────────── */
+const initials = (name) => name.split(" ").map(w => w[0]).join("").slice(0, 2).toUpperCase();
+
+const avatarGradients = [
+  "linear-gradient(135deg,#e63946,#c1121f)",
+  "linear-gradient(135deg,#0d9488,#0f766e)",
+  "linear-gradient(135deg,#7c3aed,#6d28d9)",
+  "linear-gradient(135deg,#2563eb,#1d4ed8)",
+  "linear-gradient(135deg,#d97706,#b45309)",
+];
+
+const Avatar = ({ name, size = 36 }) => {
+  const idx = name.charCodeAt(0) % avatarGradients.length;
+  return (
+    <div style={{ width: size, height: size, borderRadius: "50%", background: avatarGradients[idx], display: "flex", alignItems: "center", justifyContent: "center", color: "#fff", fontSize: size * 0.34, fontWeight: 700, flexShrink: 0, letterSpacing: "-0.02em" }}>
+      {initials(name)}
+    </div>
+  );
+};
+
+const StatusBadge = ({ status }) => {
+  const map = {
+    "Approved":      { bg: "#dcfce7", color: "#166534", dot: "#22c55e" },
+    "Bot Analyzed":  { bg: "#ede9fe", color: "#5b21b6", dot: "#7c3aed" },
+    "Pending Review":{ bg: "#fef9c3", color: "#854d0e", dot: "#eab308" },
+    "Uploaded":      { bg: "#e0f2fe", color: "#075985", dot: "#0ea5e9" },
+  };
+  const s = map[status] || { bg: "#f1f5f9", color: "#475569", dot: "#94a3b8" };
+  return (
+    <span style={{ display: "inline-flex", alignItems: "center", gap: 5, background: s.bg, color: s.color, fontSize: 11, fontWeight: 600, padding: "3px 10px", borderRadius: 20 }}>
+      <span style={{ width: 6, height: 6, borderRadius: "50%", background: s.dot, flexShrink: 0 }} />
+      {status}
+    </span>
+  );
+};
+
+const ScorePill = ({ score }) => {
+  const color = score >= 85 ? C.teal : score >= 70 ? C.amber : C.primary;
+  const bg    = score >= 85 ? C.tealSoft : score >= 70 ? C.amberSoft : C.primarySoft;
+  return (
+    <span style={{ display: "inline-block", background: bg, color, fontSize: 12, fontWeight: 700, padding: "3px 12px", borderRadius: 20, minWidth: 48, textAlign: "center" }}>
+      {score}%
+    </span>
+  );
+};
+
+/* ─── Sidebar ───────────────────────────────────────── */
+const navItems = [
+  { id: "dashboard",   icon: "▤",  label: "Dashboard" },
+  { id: "jdmanager",  icon: "📋", label: "JD Manager" },
+  { id: "upload",     icon: "↑",  label: "Upload Resume" },
+  { id: "listing",    icon: "≡",  label: "Candidate List" },
+  { id: "review",     icon: "⊞",  label: "Review Resume" },
+  { id: "jdalign",    icon: "🎯", label: "JD Alignment" },
+  { id: "jdalignlist",icon: "📊", label: "Aligned Resumes" },
+  { id: "pipeline",   icon: "⚙",  label: "Pipeline Status" },
+  { id: "settings",   icon: "◎",  label: "Settings" },
+];
+
+const navGroups = [
+  { label: "MAIN",    ids: ["dashboard"] },
+  { label: "RESUMES", ids: ["jdmanager","upload","listing","review"] },
+  { label: "OUTPUT",  ids: ["jdalign","jdalignlist","pipeline"] },
+  { label: "SYSTEM",  ids: ["settings"] },
+];
+
+function Sidebar({ active, setPage }) {
+  return (
+    <div style={{ width: 230, background: C.sidebar, display: "flex", flexDirection: "column", height: "100vh", position: "fixed", left: 0, top: 0, zIndex: 100 }}>
+      {/* Logo */}
+      <div style={{ padding: "22px 20px 18px", borderBottom: "1px solid rgba(255,255,255,0.06)" }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+          <div style={{ width: 32, height: 32, borderRadius: 8, background: C.primaryGrad, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 16, fontWeight: 700, color: "#fff" }}>C</div>
+          <div>
+            <div style={{ fontSize: 15, fontWeight: 700, color: "#fff", letterSpacing: "-0.01em" }}><span style={{ color: C.primary }}>CMS</span> TalentAI</div>
+            <div style={{ fontSize: 9, color: "rgba(255,255,255,0.28)", letterSpacing: "0.14em", textTransform: "uppercase", marginTop: 1 }}>HR Management Portal</div>
+          </div>
+        </div>
+      </div>
+
+      {/* Nav */}
+      <nav style={{ flex: 1, padding: "10px 12px", overflowY: "auto" }}>
+        {navGroups.map(group => (
+          <div key={group.label} style={{ marginBottom: 8 }}>
+            <div style={{ fontSize: 9, color: "rgba(255,255,255,0.22)", letterSpacing: "0.12em", padding: "10px 8px 4px", fontWeight: 600 }}>{group.label}</div>
+            {group.ids.map(id => {
+              const item = navItems.find(n => n.id === id);
+              const isActive = active === id;
+              return (
+                <div key={id} onClick={() => setPage(id)}
+                  style={{ display: "flex", alignItems: "center", gap: 10, padding: "9px 12px", borderRadius: 8, cursor: "pointer", marginBottom: 2,
+                    background: isActive ? C.sidebarActive : "transparent",
+                    transition: "background 0.15s" }}
+                  onMouseEnter={e => { if (!isActive) e.currentTarget.style.background = C.sidebarHover; }}
+                  onMouseLeave={e => { if (!isActive) e.currentTarget.style.background = "transparent"; }}>
+                  <span style={{ fontSize: 14, opacity: isActive ? 1 : 0.4, width: 18, textAlign: "center" }}>{item.icon}</span>
+                  <span style={{ fontSize: 13, color: isActive ? "#fff" : "rgba(255,255,255,0.48)", fontWeight: isActive ? 600 : 400 }}>{item.label}</span>
+                  {isActive && <div style={{ marginLeft: "auto", width: 4, height: 4, borderRadius: "50%", background: C.primary }} />}
+                </div>
+              );
+            })}
+          </div>
+        ))}
+      </nav>
+
+      {/* User footer */}
+      <div style={{ padding: "14px 16px", borderTop: "1px solid rgba(255,255,255,0.06)" }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 10 }}>
+          <div style={{ width: 32, height: 32, borderRadius: "50%", background: C.primaryGrad, display: "flex", alignItems: "center", justifyContent: "center", color: "#fff", fontSize: 13, fontWeight: 700 }}>AD</div>
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <div style={{ fontSize: 12, color: "#fff", fontWeight: 600 }}>admin</div>
+            <div style={{ fontSize: 10, color: "rgba(255,255,255,0.3)" }}>Logged in</div>
+          </div>
+          <div style={{ width: 8, height: 8, borderRadius: "50%", background: "#22c55e", flexShrink: 0 }} title="Groq Online" />
+        </div>
+        <button style={{ width: "100%", padding: "7px", background: "rgba(230,57,70,0.12)", border: "1px solid rgba(230,57,70,0.25)", borderRadius: 7, color: C.primary, fontSize: 11, fontWeight: 600, cursor: "pointer" }}>⎋ Sign Out</button>
+      </div>
+    </div>
+  );
+}
+
+/* ─── Topbar ─────────────────────────────────────────── */
+function Topbar({ title, sub, action }) {
+  return (
+    <div style={{ height: 62, background: C.card, borderBottom: `1px solid ${C.border}`, display: "flex", alignItems: "center", justifyContent: "space-between", padding: "0 28px", position: "sticky", top: 0, zIndex: 50 }}>
+      <div>
+        <div style={{ fontSize: 17, fontWeight: 700, color: C.text, letterSpacing: "-0.01em" }}>{title}</div>
+        {sub && <div style={{ fontSize: 12, color: C.muted, marginTop: 1 }}>{sub}</div>}
+      </div>
+      {action}
+    </div>
+  );
+}
+
+/* ─── Stat Card ──────────────────────────────────────── */
+const StatCard = ({ label, value, sub, gradient, icon }) => (
+  <div className="fade-in" style={{ background: C.card, borderRadius: 14, padding: "20px 22px", flex: 1, minWidth: 150, boxShadow: "0 1px 3px rgba(0,0,0,0.06), 0 1px 2px rgba(0,0,0,0.04)", border: `1px solid ${C.border}`, position: "relative", overflow: "hidden" }}>
+    <div style={{ position: "absolute", right: 16, top: 16, width: 42, height: 42, borderRadius: 10, background: gradient, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 20, opacity: 0.9 }}>{icon}</div>
+    <div style={{ fontSize: 30, fontWeight: 800, color: C.text, letterSpacing: "-0.02em" }}>{value}</div>
+    <div style={{ fontSize: 13, color: C.textSub, fontWeight: 500, marginTop: 3 }}>{label}</div>
+    {sub && <div style={{ fontSize: 11, color: C.muted, marginTop: 4 }}>{sub}</div>}
+  </div>
+);
+
+/* ─── Section Card ───────────────────────────────────── */
+const SCard = ({ children, style = {} }) => (
+  <div style={{ background: C.card, borderRadius: 14, border: `1px solid ${C.border}`, boxShadow: "0 1px 3px rgba(0,0,0,0.05)", overflow: "hidden", ...style }}>{children}</div>
+);
+
+const SHead = ({ children, action }) => (
+  <div style={{ padding: "15px 20px", borderBottom: `1px solid ${C.borderSoft}`, display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+    <div style={{ fontSize: 14, fontWeight: 700, color: C.text }}>{children}</div>
+    {action}
+  </div>
+);
+
+/* ─── Mini Button ─────────────────────────────────────── */
+const Chip = ({ children, active, onClick }) => (
+  <button onClick={onClick} style={{ padding: "5px 14px", borderRadius: 20, border: `1px solid ${active ? C.primary : C.border}`, background: active ? C.primarySoft : C.bg, color: active ? C.primary : C.textSub, fontSize: 12, fontWeight: active ? 600 : 400, cursor: "pointer" }}>{children}</button>
+);
+
+const Btn = ({ children, onClick, variant = "primary", small, icon }) => {
+  const s = {
+    primary:  { background: C.primaryGrad, color: "#fff", border: "none" },
+    outline:  { background: "transparent", color: C.primary, border: `1.5px solid ${C.primary}` },
+    ghost:    { background: C.borderSoft, color: C.textSub, border: "none" },
+    success:  { background: C.tealGrad, color: "#fff", border: "none" },
+  }[variant];
+  return (
+    <button onClick={onClick} style={{ ...s, padding: small ? "6px 14px" : "9px 20px", borderRadius: 8, cursor: "pointer", fontSize: small ? 11 : 13, fontWeight: 600, display: "inline-flex", alignItems: "center", gap: 6 }}>
+      {icon && <span>{icon}</span>}{children}
+    </button>
+  );
+};
+
+/* ─── Dashboard Page ─────────────────────────────────── */
+function PageDashboard({ setPage }) {
+  const total = CANDIDATES.length;
+  const pending  = CANDIDATES.filter(c => c.status === "Pending Review" || c.status === "Uploaded").length;
+  const analyzed = CANDIDATES.filter(c => c.status === "Bot Analyzed").length;
+  const approved = CANDIDATES.filter(c => c.status === "Approved").length;
+
+  const recentActivity = [
+    { text: "Priya Sharma approved for JP Morgan",          time: "2 min ago",  dot: "#22c55e" },
+    { text: "Rahul Mehta analyzed — score 84%",             time: "18 min ago", dot: "#7c3aed" },
+    { text: "Sonal Gupta resume aligned to Stripe JD",      time: "45 min ago", dot: "#0d9488" },
+    { text: "3 new resumes uploaded by Ravi Kumar",         time: "1 hr ago",   dot: "#3b82f6" },
+    { text: "Deepa Menon approved for HSBC BA role",        time: "2 hr ago",   dot: "#22c55e" },
+  ];
+
+  return (
+    <div className="fade-in">
+      <Topbar title="Dashboard" sub="Good morning! Here's what's happening today."
+        action={<Btn icon="↑" onClick={() => setPage("upload")}>Upload Resume</Btn>} />
+      <div style={{ padding: 24 }}>
+
+        {/* Stats */}
+        <div style={{ display: "flex", gap: 14, marginBottom: 22 }}>
+          <StatCard label="Total Candidates" value={total}    gradient={C.blueGrad}   icon="👥" sub="All time" />
+          <StatCard label="Pending Review"   value={pending}  gradient={C.amberGrad}  icon="⏳" sub="Needs attention" />
+          <StatCard label="Bot Analyzed"     value={analyzed} gradient={C.purpleGrad} icon="🤖" sub="AI processed" />
+          <StatCard label="Approved"         value={approved} gradient={C.tealGrad}   icon="✓"  sub="Ready to submit" />
+        </div>
+
+        {/* Main grid */}
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 300px", gap: 18 }}>
+
+          {/* Recent candidates */}
+          <SCard>
+            <SHead action={<Btn variant="ghost" small onClick={() => setPage("listing")}>View all →</Btn>}>
+              Recent Candidates
+            </SHead>
+            <table style={{ width: "100%", borderCollapse: "collapse" }}>
+              <thead>
+                <tr style={{ background: C.borderSoft }}>
+                  {["Candidate","Role","Recruiter","Score","Status"].map(h => (
+                    <th key={h} style={{ padding: "10px 16px", fontSize: 11, fontWeight: 600, color: C.muted, textAlign: "left", textTransform: "uppercase", letterSpacing: "0.06em" }}>{h}</th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {CANDIDATES.slice(0, 5).map((c, i) => (
+                  <tr key={c.id} onClick={() => setPage("review")}
+                    style={{ borderTop: `1px solid ${C.borderSoft}`, cursor: "pointer", transition: "background 0.12s" }}
+                    onMouseEnter={e => e.currentTarget.style.background = "#f8fafc"}
+                    onMouseLeave={e => e.currentTarget.style.background = "transparent"}>
+                    <td style={{ padding: "11px 16px" }}>
+                      <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                        <Avatar name={c.name} size={32} />
+                        <div>
+                          <div style={{ fontSize: 13, fontWeight: 600, color: C.text }}>{c.name}</div>
+                          <div style={{ fontSize: 11, color: C.muted }}>{c.company}</div>
+                        </div>
+                      </div>
+                    </td>
+                    <td style={{ padding: "11px 16px", fontSize: 12, color: C.textSub }}>{c.role}</td>
+                    <td style={{ padding: "11px 16px", fontSize: 12, color: C.textSub }}>{c.recruiter}</td>
+                    <td style={{ padding: "11px 16px" }}><ScorePill score={c.score} /></td>
+                    <td style={{ padding: "11px 16px" }}><StatusBadge status={c.status} /></td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </SCard>
+
+          {/* Right column */}
+          <div style={{ display: "flex", flexDirection: "column", gap: 18 }}>
+            {/* Pipeline */}
+            <SCard>
+              <SHead>Pipeline Status</SHead>
+              <div style={{ padding: "16px 20px" }}>
+                {[
+                  { label: "Uploaded",       count: 2, color: "#3b82f6",  pct: 25 },
+                  { label: "Bot Analyzed",   count: 3, color: "#7c3aed",  pct: 38 },
+                  { label: "Approved",       count: 3, color: "#0d9488",  pct: 37 },
+                ].map(s => (
+                  <div key={s.label} style={{ marginBottom: 14 }}>
+                    <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 5 }}>
+                      <span style={{ fontSize: 12, color: C.textSub, fontWeight: 500 }}>{s.label}</span>
+                      <span style={{ fontSize: 12, fontWeight: 700, color: s.color }}>{s.count}</span>
+                    </div>
+                    <div style={{ height: 6, background: C.borderSoft, borderRadius: 10, overflow: "hidden" }}>
+                      <div style={{ height: "100%", width: `${s.pct}%`, background: s.color, borderRadius: 10, transition: "width 0.6s ease" }} />
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </SCard>
+
+            {/* Activity */}
+            <SCard>
+              <SHead>Recent Activity</SHead>
+              <div style={{ padding: "12px 20px" }}>
+                {recentActivity.map((a, i) => (
+                  <div key={i} style={{ display: "flex", gap: 10, paddingBottom: 12, marginBottom: i < recentActivity.length-1 ? 12 : 0, borderBottom: i < recentActivity.length-1 ? `1px solid ${C.borderSoft}` : "none" }}>
+                    <div style={{ width: 8, height: 8, borderRadius: "50%", background: a.dot, marginTop: 4, flexShrink: 0 }} />
+                    <div style={{ flex: 1 }}>
+                      <div style={{ fontSize: 12, color: C.text, lineHeight: 1.45 }}>{a.text}</div>
+                      <div style={{ fontSize: 10, color: C.muted, marginTop: 2 }}>{a.time}</div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </SCard>
+          </div>
+
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/* ─── Candidate List Page ────────────────────────────── */
+function PageListing({ setPage }) {
+  const [filter, setFilter] = useState("All");
+  const [search, setSearch] = useState("");
+
+  const statusFilters = ["All", "Pending Review", "Bot Analyzed", "Approved"];
+
+  const filtered = CANDIDATES.filter(c => {
+    const matchStatus = filter === "All" || c.status === filter;
+    const matchSearch = !search || c.name.toLowerCase().includes(search.toLowerCase()) || c.role.toLowerCase().includes(search.toLowerCase());
+    return matchStatus && matchSearch;
+  });
+
+  return (
+    <div className="fade-in">
+      <Topbar title="Candidate List" sub={`${CANDIDATES.length} total candidates`}
+        action={<Btn icon="↑" onClick={() => setPage("upload")}>Upload Resume</Btn>} />
+      <div style={{ padding: 24 }}>
+        <SCard>
+          {/* Toolbar */}
+          <div style={{ padding: "14px 20px", borderBottom: `1px solid ${C.borderSoft}`, display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
+            <div style={{ flex: 1, minWidth: 200, position: "relative" }}>
+              <span style={{ position: "absolute", left: 12, top: "50%", transform: "translateY(-50%)", fontSize: 13, color: C.muted }}>🔍</span>
+              <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search candidates or roles…"
+                style={{ width: "100%", padding: "8px 12px 8px 32px", border: `1px solid ${C.border}`, borderRadius: 8, fontSize: 13, color: C.text, background: C.bg, outline: "none" }} />
+            </div>
+            <div style={{ display: "flex", gap: 6 }}>
+              {statusFilters.map(f => <Chip key={f} active={filter === f} onClick={() => setFilter(f)}>{f}</Chip>)}
+            </div>
+          </div>
+
+          {/* Table */}
+          <table style={{ width: "100%", borderCollapse: "collapse" }}>
+            <thead>
+              <tr style={{ background: C.borderSoft }}>
+                {["#","Candidate","Role","JD / Client","Recruiter","Score","Status","Action"].map(h => (
+                  <th key={h} style={{ padding: "10px 16px", fontSize: 11, fontWeight: 600, color: C.muted, textAlign: "left", textTransform: "uppercase", letterSpacing: "0.06em", whiteSpace: "nowrap" }}>{h}</th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {filtered.map((c, i) => (
+                <tr key={c.id}
+                  style={{ borderTop: `1px solid ${C.borderSoft}`, transition: "background 0.12s" }}
+                  onMouseEnter={e => e.currentTarget.style.background = "#f8fafc"}
+                  onMouseLeave={e => e.currentTarget.style.background = "transparent"}>
+                  <td style={{ padding: "12px 16px", fontSize: 12, color: C.muted, fontWeight: 600 }}>{String(i+1).padStart(2,"0")}</td>
+                  <td style={{ padding: "12px 16px" }}>
+                    <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                      <Avatar name={c.name} size={34} />
+                      <div>
+                        <div style={{ fontSize: 13, fontWeight: 600, color: C.text }}>{c.name}</div>
+                        <div style={{ fontSize: 11, color: C.muted }}>{c.company}</div>
+                      </div>
+                    </div>
+                  </td>
+                  <td style={{ padding: "12px 16px" }}>
+                    <span style={{ fontSize: 12, background: C.tealSoft, color: C.teal, fontWeight: 600, padding: "3px 10px", borderRadius: 6 }}>{c.role}</span>
+                  </td>
+                  <td style={{ padding: "12px 16px", fontSize: 12, color: C.textSub, maxWidth: 160 }}>
+                    <div style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{c.jd}</div>
+                  </td>
+                  <td style={{ padding: "12px 16px", fontSize: 12, color: C.textSub }}>{c.recruiter}</td>
+                  <td style={{ padding: "12px 16px" }}><ScorePill score={c.score} /></td>
+                  <td style={{ padding: "12px 16px" }}><StatusBadge status={c.status} /></td>
+                  <td style={{ padding: "12px 16px" }}>
+                    <button onClick={() => setPage("review")}
+                      style={{ padding: "5px 14px", background: C.primarySoft, color: C.primary, border: `1px solid ${C.primary}`, borderRadius: 6, fontSize: 11, fontWeight: 600, cursor: "pointer" }}>
+                      Review →
+                    </button>
+                  </td>
+                </tr>
+              ))}
+              {filtered.length === 0 && (
+                <tr><td colSpan={8} style={{ padding: "32px 20px", textAlign: "center", color: C.muted, fontSize: 13 }}>No candidates match your filter.</td></tr>
+              )}
+            </tbody>
+          </table>
+
+          {/* Footer */}
+          <div style={{ padding: "12px 20px", borderTop: `1px solid ${C.borderSoft}`, display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+            <span style={{ fontSize: 12, color: C.muted }}>Showing {filtered.length} of {CANDIDATES.length} candidates</span>
+            <div style={{ display: "flex", gap: 4 }}>
+              {[1,2,3].map(p => (
+                <button key={p} style={{ width: 30, height: 30, borderRadius: 6, border: `1px solid ${p===1?C.primary:C.border}`, background: p===1 ? C.primarySoft : "transparent", color: p===1 ? C.primary : C.textSub, fontSize: 12, fontWeight: p===1?700:400, cursor: "pointer" }}>{p}</button>
+              ))}
+            </div>
+          </div>
+        </SCard>
+      </div>
+    </div>
+  );
+}
+
+/* ─── Placeholder Page ───────────────────────────────── */
+function PlaceholderPage({ title, sub }) {
+  return (
+    <div className="fade-in">
+      <Topbar title={title} sub={sub} />
+      <div style={{ padding: 24 }}>
+        <SCard style={{ padding: 48, textAlign: "center" }}>
+          <div style={{ fontSize: 40, marginBottom: 12 }}>🚧</div>
+          <div style={{ fontSize: 16, fontWeight: 700, color: C.text, marginBottom: 8 }}>Preview Sample</div>
+          <div style={{ fontSize: 13, color: C.muted }}>This page would follow the same design language shown in Dashboard &amp; Candidate List.</div>
+        </SCard>
+      </div>
+    </div>
+  );
+}
+
+/* ─── App ────────────────────────────────────────────── */
+function App() {
+  const [page, setPage] = useState("dashboard");
+
+  const pages = {
+    dashboard:   <PageDashboard setPage={setPage} />,
+    listing:     <PageListing setPage={setPage} />,
+    jdmanager:   <PlaceholderPage title="JD Manager"        sub="Manage job descriptions and requirements" />,
+    upload:      <PlaceholderPage title="Upload Resume"      sub="Upload and parse candidate resumes" />,
+    review:      <PlaceholderPage title="Review Resume"      sub="AI analysis and scoring" />,
+    jdalign:     <PlaceholderPage title="JD Alignment"       sub="Align resume to job description" />,
+    jdalignlist: <PlaceholderPage title="Aligned Resumes"    sub="All JD-aligned resume versions" />,
+    pipeline:    <PlaceholderPage title="Pipeline Status"    sub="Track AI processing jobs" />,
+    settings:    <PlaceholderPage title="Settings"           sub="Configure AI providers and credentials" />,
+  };
+
+  return (
+    <div style={{ display: "flex", background: C.bg, minHeight: "100vh" }}>
+      <Sidebar active={page} setPage={setPage} />
+      <div style={{ marginLeft: 230, flex: 1, minHeight: "100vh", overflow: "auto" }}>
+        {pages[page] || pages.dashboard}
+      </div>
+
+      {/* Preview banner */}
+      <div style={{ position: "fixed", bottom: 0, left: 230, right: 0, zIndex: 9999, background: "#0f172a", color: "#fff", padding: "10px 24px", display: "flex", alignItems: "center", justifyContent: "space-between", borderTop: "2px solid #e63946" }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+          <span style={{ fontSize: 14 }}>🎨</span>
+          <span style={{ fontSize: 13, fontWeight: 600 }}>UI Preview — <span style={{ color: "#e63946" }}>CMS TalentAI</span> New Design</span>
+          <span style={{ fontSize: 11, color: "rgba(255,255,255,0.4)" }}>Dashboard &amp; Candidate List are fully designed · Other pages show placeholder</span>
+        </div>
+        <button onClick={() => window.location.href = "/"}
+          style={{ fontSize: 11, color: "rgba(255,255,255,0.6)", background: "rgba(255,255,255,0.08)", border: "1px solid rgba(255,255,255,0.15)", borderRadius: 20, padding: "4px 14px", cursor: "pointer" }}>
+          ← Back to Classic UI
+        </button>
+      </div>
+    </div>
+  );
+}
+
+ReactDOM.createRoot(document.getElementById("root")).render(<App />);
+</script>
+</body>
+</html>

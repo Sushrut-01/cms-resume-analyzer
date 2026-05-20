@@ -1,0 +1,2398 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>CMS TalentAI · HR Management Portal</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.2/babel.min.js"></script>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font-family: 'Trebuchet MS', sans-serif; background: #f5f4f0; }
+  ::-webkit-scrollbar { width: 6px; }
+  ::-webkit-scrollbar-thumb { background: #ccc; border-radius: 3px; }
+  @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+</style>
+</head>
+<body>
+<div id="root"></div>
+<script type="text/babel">
+const { useState, useEffect } = React;
+const API = "http://127.0.0.1:8000";
+
+const C = {
+  bg: "#f5f4f0", card: "#ffffff", sidebar: "#1a1a2e",
+  accent: "#e63946", accentSoft: "#fde8ea",
+  teal: "#2a9d8f", tealSoft: "#e0f5f3",
+  gold: "#e9c46a", goldSoft: "#fdf6e3",
+  text: "#1a1a2e", muted: "#8b8fa8", border: "#e8e6df",
+};
+const font = { head: "'Georgia', serif", body: "'Trebuchet MS', sans-serif", mono: "'Courier New', monospace" };
+
+const api = {
+  getCandidates: async () => {
+    try { const r = await fetch(`${API}/candidates/`); const d = await r.json(); return d.data || []; } catch { return []; }
+  },
+  getCandidate: async (id) => {
+    try { const r = await fetch(`${API}/candidates/${id}`); const d = await r.json(); return d.data || {}; } catch { return {}; }
+  },
+  uploadResume: async (file, clientRequirementId, recruiterName = "") => {
+    const form = new FormData();
+    form.append("file", file);
+    form.append("client_requirement_id", clientRequirementId);
+    form.append("recruiter_name", recruiterName);
+    try {
+      const r = await fetch(`${API}/candidates/upload`, { method: "POST", body: form });
+      const data = await r.json();
+      if (!r.ok) return { success: false, error: data?.detail || "Upload failed" };
+      return data;
+    } catch (e) { return { success: false, error: e.message }; }
+  },
+  getJDs: async () => {
+    try { const r = await fetch(`${API}/client-requirements`); return await r.json(); }
+    catch { return []; }
+  },
+  createJD: async (payload) => {
+    try {
+      const r = await fetch(`${API}/client-requirements`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) });
+      return await r.json();
+    } catch (e) { return { error: e.message }; }
+  },
+  updateJD: async (id, payload) => {
+    try {
+      const r = await fetch(`${API}/client-requirements/${id}`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) });
+      return await r.json();
+    } catch (e) { return { error: e.message }; }
+  },
+  deleteJD: async (id) => {
+    try { const r = await fetch(`${API}/client-requirements/${id}`, { method: "DELETE" }); return await r.json(); }
+    catch (e) { return { success: false, error: e.message }; }
+  },
+  getRecruiters: async () => {
+    try { const r = await fetch(`${API}/recruiters/`); const d = await r.json(); return d.data || []; }
+    catch { return []; }
+  },
+  createRecruiter: async (name) => {
+    try {
+      const r = await fetch(`${API}/recruiters/`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ name }) });
+      return await r.json();
+    } catch (e) { return { success: false, error: e.message }; }
+  },
+  deleteRecruiter: async (id) => {
+    try { const r = await fetch(`${API}/recruiters/${id}`, { method: "DELETE" }); return await r.json(); }
+    catch (e) { return { success: false, error: e.message }; }
+  },
+  analyze: async (id) => {
+    try { const r = await fetch(`${API}/candidates/${id}/analyze`, { method: "POST" }); return await r.json(); }
+    catch (e) { return { success: false, error: e.message }; }
+  },
+  approve: async (id) => {
+    try { const r = await fetch(`${API}/candidates/${id}/approve`, { method: "PUT" }); return await r.json(); }
+    catch (e) { return { success: false, error: e.message }; }
+  },
+  ollamaStatus: async () => {
+    try { const r = await fetch(`${API}/candidates/system/ollama-status`); return await r.json(); }
+    catch { return { online: false }; }
+  },
+  updateResume: async (id, text) => {
+    const form = new FormData(); form.append("improved_text", text);
+    try { const r = await fetch(`${API}/candidates/${id}/update`, { method: "PUT", body: form }); return await r.json(); }
+    catch (e) { return { success: false, error: e.message }; }
+  },
+  generateJDAligned: async (id) => {
+    try { const r = await fetch(`${API}/candidates/${id}/generate-jd-aligned-resume`, { method: "POST" }); return await r.json(); }
+    catch (e) { return { success: false, error: e.message }; }
+  },
+  saveManualResume: async (id, text) => {
+    const form = new FormData(); form.append("manual_text", text);
+    try { const r = await fetch(`${API}/candidates/${id}/manual-resume`, { method: "PUT", body: form }); return await r.json(); }
+    catch (e) { return { success: false, error: e.message }; }
+  },
+  downloadResume: (id) => { window.open(`${API}/candidates/${id}/download-resume`, '_blank'); },
+  getJDAligned: async () => {
+    try { const r = await fetch(`${API}/candidates/list/jd-aligned`); const d = await r.json(); return d.data || []; } catch { return []; }
+  },
+  getSettings: async () => {
+    try { const r = await fetch(`${API}/settings/`); return await r.json(); } catch { return { success: false }; }
+  },
+  saveSettings: async (payload) => {
+    try { const r = await fetch(`${API}/settings/`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) }); return await r.json(); }
+    catch (e) { return { success: false, error: e.message }; }
+  },
+  testConnection: async () => {
+    try { const r = await fetch(`${API}/settings/test`, { method: "POST" }); return await r.json(); }
+    catch (e) { return { success: false, message: e.message }; }
+  },
+  login: async (username, password) => {
+    try {
+      const r = await fetch(`${API}/auth/login`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ username, password }) });
+      return await r.json();
+    } catch (e) { return { success: false, detail: e.message }; }
+  },
+  verifyToken: async (token) => {
+    try {
+      const r = await fetch(`${API}/auth/verify`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ token }) });
+      if (!r.ok) return { valid: false };
+      return await r.json();
+    } catch { return { valid: false }; }
+  },
+  changeCredentials: async (username, password) => {
+    try {
+      const r = await fetch(`${API}/settings/`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ login_username: username, login_password: password }) });
+      return await r.json();
+    } catch (e) { return { success: false, error: e.message }; }
+  },
+};
+
+const Badge = ({ label, color = C.teal, bg = C.tealSoft }) => (
+  <span style={{ fontSize: 11, fontWeight: 700, color, background: bg, padding: "2px 10px", borderRadius: 20, whiteSpace: "nowrap" }}>{label}</span>
+);
+
+const Avatar = ({ initials, size = 36 }) => (
+  <div style={{ width: size, height: size, borderRadius: "50%", background: "linear-gradient(135deg, #e63946, #c1121f)", display: "flex", alignItems: "center", justifyContent: "center", color: "#fff", fontSize: size * 0.33, fontFamily: font.head, fontWeight: 700, flexShrink: 0 }}>{initials}</div>
+);
+
+const Btn = ({ children, onClick, variant = "primary", small, full, disabled }) => {
+  const styles = {
+    primary: { background: C.accent, color: "#fff", border: "none" },
+    outline: { background: "transparent", color: C.accent, border: `1px solid ${C.accent}` },
+    ghost: { background: "transparent", color: C.muted, border: `1px solid ${C.border}` },
+    success: { background: C.teal, color: "#fff", border: "none" },
+    warn: { background: C.gold, color: C.text, border: "none" },
+  };
+  const s = styles[variant] || styles.primary;
+  return (
+    <button onClick={onClick} disabled={disabled} style={{ ...s, padding: small ? "6px 12px" : "9px 18px", borderRadius: 6, cursor: disabled ? "not-allowed" : "pointer", fontSize: small ? 11 : 13, fontFamily: font.body, fontWeight: 600, width: full ? "100%" : "auto", opacity: disabled ? 0.5 : 1 }}>{children}</button>
+  );
+};
+
+const StatCard = ({ label, value, sub, color = C.accent }) => (
+  <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 10, padding: "18px 22px", flex: 1, minWidth: 130 }}>
+    <div style={{ fontSize: 28, fontFamily: font.head, fontWeight: 700, color }}>{value}</div>
+    <div style={{ fontSize: 13, color: C.text, fontWeight: 600, marginTop: 2 }}>{label}</div>
+    {sub && <div style={{ fontSize: 11, color: C.muted, marginTop: 3 }}>{sub}</div>}
+  </div>
+);
+
+const Pagination = ({ total, perPage, page, setPage }) => {
+  const totalPages = Math.ceil(total / perPage);
+  if (totalPages <= 1) return null;
+  const start = page * perPage + 1, end = Math.min((page + 1) * perPage, total);
+  return (
+    <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "12px 20px", borderTop: `1px solid ${C.border}` }}>
+      <button onClick={() => setPage(p => Math.max(0, p - 1))} disabled={page === 0} style={{ padding: "5px 14px", borderRadius: 6, border: `1px solid ${C.border}`, background: page === 0 ? C.bg : C.card, color: page === 0 ? C.muted : C.text, cursor: page === 0 ? "default" : "pointer", fontSize: 12 }}>← Prev</button>
+      <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+        <span style={{ fontSize: 11, color: C.muted }}>Showing {start}–{end} of {total}</span>
+        <div style={{ display: "flex", gap: 4 }}>
+          {Array.from({ length: totalPages }, (_, p) => (
+            <button key={p} onClick={() => setPage(p)} style={{ width: 28, height: 28, borderRadius: 6, border: `1px solid ${p === page ? C.teal : C.border}`, background: p === page ? C.tealSoft : C.bg, color: p === page ? C.teal : C.muted, cursor: "pointer", fontSize: 12, fontWeight: p === page ? 700 : 400 }}>{p + 1}</button>
+          ))}
+        </div>
+      </div>
+      <button onClick={() => setPage(p => Math.min(totalPages - 1, p + 1))} disabled={page >= totalPages - 1} style={{ padding: "5px 14px", borderRadius: 6, border: `1px solid ${C.border}`, background: page >= totalPages - 1 ? C.bg : C.card, color: page >= totalPages - 1 ? C.muted : C.text, cursor: page >= totalPages - 1 ? "default" : "pointer", fontSize: 12 }}>Next →</button>
+    </div>
+  );
+};
+
+function PageLogin({ onLogin }) {
+  const [username, setUsername] = React.useState("");
+  const [password, setPassword] = React.useState("");
+  const [showPwd, setShowPwd] = React.useState(false);
+  const [loading, setLoading] = React.useState(false);
+  const [error, setError] = React.useState("");
+  const [uiPref, setUiPref] = React.useState(localStorage.getItem("cms_ui_pref") || "classic");
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    if (!username.trim() || !password) { setError("Please enter both username and password."); return; }
+    setLoading(true); setError("");
+    const res = await api.login(username.trim(), password);
+    setLoading(false);
+    if (res.success && res.token) {
+      localStorage.setItem("cms_token", res.token);
+      localStorage.setItem("cms_username", res.username || username.trim());
+      localStorage.setItem("cms_ui_pref", uiPref);
+      if (uiPref === "premium") {
+        window.location.href = "/static/preview.html";
+      } else {
+        onLogin(res.token, res.username || username.trim());
+      }
+    } else {
+      setError(res.detail || res.error || "Invalid username or password.");
+      setPassword("");
+    }
+  };
+
+  return (
+    <div style={{ minHeight: "100vh", background: C.sidebar, display: "flex", alignItems: "center", justifyContent: "center" }}>
+      <div style={{ width: 420 }}>
+        {/* Logo block */}
+        <div style={{ textAlign: "center", marginBottom: 36 }}>
+          <div style={{ fontSize: 32, fontFamily: font.head, color: "#fff", fontWeight: 700, letterSpacing: "-0.02em" }}>
+            <span style={{ color: C.accent }}>CMS</span> TalentAI
+          </div>
+          <div style={{ fontSize: 11, color: "rgba(255,255,255,0.35)", marginTop: 6, letterSpacing: "0.18em", textTransform: "uppercase" }}>HR Management Portal</div>
+        </div>
+
+        {/* Card */}
+        <div style={{ background: "#fff", borderRadius: 14, padding: "36px 40px", boxShadow: "0 20px 60px rgba(0,0,0,0.35)" }}>
+          <div style={{ fontSize: 18, fontFamily: font.head, fontWeight: 700, color: C.text, marginBottom: 6 }}>Sign in to your account</div>
+          <div style={{ fontSize: 12, color: C.muted, marginBottom: 28 }}>Enter your credentials to access the portal</div>
+
+          <form onSubmit={handleSubmit}>
+            <div style={{ marginBottom: 18 }}>
+              <label style={{ fontSize: 11, color: C.muted, textTransform: "uppercase", letterSpacing: "0.08em", display: "block", marginBottom: 6 }}>Username</label>
+              <input
+                type="text" value={username} onChange={e => setUsername(e.target.value)} autoFocus
+                placeholder="Enter username"
+                style={{ display: "block", width: "100%", padding: "11px 14px", border: `1px solid ${C.border}`, borderRadius: 8, fontSize: 14, fontFamily: font.body, outline: "none" }}
+              />
+            </div>
+            <div style={{ marginBottom: 24 }}>
+              <label style={{ fontSize: 11, color: C.muted, textTransform: "uppercase", letterSpacing: "0.08em", display: "block", marginBottom: 6 }}>Password</label>
+              <div style={{ display: "flex", gap: 8 }}>
+                <input
+                  type={showPwd ? "text" : "password"} value={password} onChange={e => setPassword(e.target.value)}
+                  placeholder="Enter password"
+                  style={{ flex: 1, padding: "11px 14px", border: `1px solid ${C.border}`, borderRadius: 8, fontSize: 14, fontFamily: font.body, outline: "none" }}
+                />
+                <button type="button" onClick={() => setShowPwd(!showPwd)} style={{ padding: "11px 14px", border: `1px solid ${C.border}`, borderRadius: 8, cursor: "pointer", background: C.bg, fontSize: 14 }}>{showPwd ? "🙈" : "👁"}</button>
+              </div>
+            </div>
+
+            {/* UI selector */}
+            <div style={{ marginBottom: 20 }}>
+              <label style={{ fontSize: 11, color: C.muted, textTransform: "uppercase", letterSpacing: "0.08em", display: "block", marginBottom: 8 }}>Interface</label>
+              <div style={{ background: C.bg, borderRadius: 8, padding: 4, display: "flex", gap: 4 }}>
+                {[["classic","Classic UI"],["premium","✨ New Premium UI"]].map(([opt, label]) => (
+                  <button key={opt} type="button"
+                    onClick={() => { setUiPref(opt); localStorage.setItem("cms_ui_pref", opt); }}
+                    style={{ flex: 1, padding: "8px 10px", borderRadius: 6, border: "none", cursor: "pointer",
+                      background: uiPref === opt ? (opt === "premium" ? C.accent : "#fff") : "transparent",
+                      color: uiPref === opt ? (opt === "premium" ? "#fff" : C.text) : C.muted,
+                      fontSize: 12, fontWeight: uiPref === opt ? 700 : 400,
+                      boxShadow: uiPref === opt ? "0 1px 4px rgba(0,0,0,0.12)" : "none",
+                      transition: "all 0.15s" }}>
+                    {label}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {error && (
+              <div style={{ background: "#fde8ea", border: `1px solid ${C.accent}`, borderRadius: 8, padding: "10px 14px", marginBottom: 18, fontSize: 13, color: C.accent }}>{error}</div>
+            )}
+
+            <button type="submit" disabled={loading} style={{ width: "100%", padding: "13px", background: loading ? C.muted : C.accent, color: "#fff", border: "none", borderRadius: 8, fontSize: 14, fontWeight: 700, fontFamily: font.body, cursor: loading ? "not-allowed" : "pointer" }}>
+              {loading ? "Signing in…" : "Sign In →"}
+            </button>
+          </form>
+        </div>
+
+        <div style={{ textAlign: "center", marginTop: 20 }}>
+          <span style={{ fontSize: 11, color: "rgba(255,255,255,0.2)" }}>CMS TalentAI · HR Management Portal</span>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+const navItems = [
+  { id: "dashboard", icon: "⬛", label: "Dashboard" },
+  { id: "jdmanager", icon: "📋", label: "JD Manager" },
+  { id: "upload", icon: "⬆", label: "Upload Resume" },
+  { id: "listing", icon: "☰", label: "Candidate List" },
+  { id: "review", icon: "⊞", label: "Review Resume" },
+  { id: "jdalign", icon: "🎯", label: "JD Alignment" },
+  { id: "jdalignlist", icon: "📊", label: "Aligned Resumes" },
+  { id: "pipeline", icon: "⚙", label: "Pipeline Status" },
+  { id: "settings", icon: "◎", label: "Settings" },
+];
+
+function Sidebar({ active, setPage, ollamaOnline, ollamaProvider, username, onLogout }) {
+  return (
+    <div style={{ width: 220, background: C.sidebar, display: "flex", flexDirection: "column", height: "100vh", position: "fixed", left: 0, top: 0, zIndex: 100 }}>
+      <div style={{ padding: "24px 20px 20px", borderBottom: "1px solid rgba(255,255,255,0.07)" }}>
+        <div style={{ fontSize: 17, fontFamily: font.head, color: "#fff", fontWeight: 700 }}><span style={{ color: C.accent }}>CMS</span> Resume AI</div>
+        <div style={{ fontSize: 10, color: "rgba(255,255,255,0.35)", marginTop: 3, letterSpacing: "0.12em" }}>HR MANAGEMENT PORTAL</div>
+      </div>
+      <nav style={{ flex: 1, padding: "12px 0" }}>
+        {navItems.map(item => (
+          <div key={item.id} onClick={() => setPage(item.id)} style={{ display: "flex", alignItems: "center", gap: 12, padding: "11px 20px", cursor: "pointer", background: active === item.id ? "rgba(230,57,70,0.18)" : "transparent", borderLeft: active === item.id ? `3px solid ${C.accent}` : "3px solid transparent" }}>
+            <span style={{ fontSize: 14, opacity: active === item.id ? 1 : 0.45 }}>{item.icon}</span>
+            <span style={{ fontSize: 13, color: active === item.id ? "#fff" : "rgba(255,255,255,0.5)", fontWeight: active === item.id ? 600 : 400 }}>{item.label}</span>
+          </div>
+        ))}
+      </nav>
+      <div style={{ padding: "12px 20px", borderTop: "1px solid rgba(255,255,255,0.07)" }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 12 }}>
+          <div style={{ width: 8, height: 8, borderRadius: "50%", background: ollamaOnline ? "#4ade80" : "#ef4444" }} />
+          <span style={{ fontSize: 11, color: "rgba(255,255,255,0.5)" }}>
+            {(() => {
+              const label = ollamaProvider === "gemini" ? "Gemini ✦" : ollamaProvider === "azure" ? "Azure OpenAI ☁" : ollamaProvider === "groq" ? "Groq ⚡" : ollamaProvider === "nvidia" ? "NVIDIA NIM 🟢" : "Ollama";
+              return ollamaOnline ? `${label} Online` : `${label} Offline`;
+            })()}
+          </span>
+        </div>
+        <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 10 }}>
+          <Avatar initials={(username || "HR").slice(0, 2).toUpperCase()} size={32} />
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <div style={{ fontSize: 12, color: "#fff", fontWeight: 600, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{username || "HR Admin"}</div>
+            <div style={{ fontSize: 10, color: "rgba(255,255,255,0.35)" }}>Logged in</div>
+          </div>
+        </div>
+        <button onClick={onLogout} style={{ width: "100%", padding: "7px 12px", background: "rgba(230,57,70,0.15)", border: "1px solid rgba(230,57,70,0.3)", borderRadius: 7, color: C.accent, fontSize: 12, fontWeight: 600, cursor: "pointer", textAlign: "left" }}>⎋ Sign Out</button>
+      </div>
+    </div>
+  );
+}
+
+function Topbar({ title, sub, setPage }) {
+  return (
+    <div style={{ height: 60, background: C.card, borderBottom: `1px solid ${C.border}`, display: "flex", alignItems: "center", padding: "0 28px", position: "sticky", top: 0, zIndex: 50 }}>
+      <div>
+        <div style={{ fontSize: 16, fontFamily: font.head, fontWeight: 700, color: C.text }}>{title}</div>
+        {sub && <div style={{ fontSize: 11, color: C.muted, marginTop: 1 }}>{sub}</div>}
+      </div>
+    </div>
+  );
+}
+
+function PageDashboard({ setPage }) {
+  const [candidates, setCandidates] = useState([]);
+  const [coverage, setCoverage] = useState(null);
+  useEffect(() => {
+    api.getCandidates().then(setCandidates);
+    fetch("/settings/domain-coverage").then(r => r.json()).then(r => { if (r.success) setCoverage(r.data); });
+  }, []);
+  const total = candidates.length;
+  const pending = candidates.filter(c => c.status === "Pending Review" || c.status === "Uploaded").length;
+  const analyzed = candidates.filter(c => c.status === "Bot Analyzed").length;
+  const approved = candidates.filter(c => c.status === "Approved").length;
+  return (
+    <div>
+      <Topbar title="Dashboard" sub="Overview of all candidate activity" setPage={setPage} />
+      <div style={{ padding: 28 }}>
+        <div style={{ display: "flex", gap: 16, flexWrap: "wrap", marginBottom: 28 }}>
+          <StatCard label="Total Candidates" value={total} color={C.accent} />
+          <StatCard label="Pending Review" value={pending} color={C.gold} />
+          <StatCard label="Bot Analyzed" value={analyzed} color={C.teal} />
+          <StatCard label="Approved" value={approved} color="#2a9d8f" />
+        </div>
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 280px", gap: 20 }}>
+          <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 10, overflow: "hidden" }}>
+            <div style={{ padding: "16px 20px", borderBottom: `1px solid ${C.border}`, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+              <div style={{ fontSize: 14, fontFamily: font.head, fontWeight: 700 }}>Recent Candidates</div>
+              <Btn onClick={() => setPage("listing")} variant="ghost" small>View All →</Btn>
+            </div>
+            {candidates.length === 0 && <div style={{ padding: 28, textAlign: "center", color: C.muted, fontSize: 13 }}>No candidates yet. Upload a resume to get started!</div>}
+            {candidates.slice(0, 5).map((c, i) => (
+              <div key={c.id} onClick={() => setPage("review")} style={{ display: "flex", alignItems: "center", gap: 14, padding: "12px 20px", borderBottom: i < 4 ? `1px solid ${C.border}` : "none", cursor: "pointer" }}>
+                <Avatar initials={(c.name || "??").slice(0, 2).toUpperCase()} />
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ fontSize: 13, fontWeight: 600, color: C.text, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{c.name || "Unknown"}</div>
+                  <div style={{ fontSize: 11, color: C.muted }}>{c.company_name || "N/A"}</div>
+                </div>
+                <Badge label={c.status} color={c.status === "Approved" ? C.teal : c.status === "Bot Analyzed" ? "#7c6af7" : C.gold} bg={c.status === "Approved" ? C.tealSoft : c.status === "Bot Analyzed" ? "#eeecff" : C.goldSoft} />
+                <div style={{ fontSize: 13, fontWeight: 700, color: c.score >= 80 ? C.teal : c.score >= 70 ? C.gold : C.accent, minWidth: 36, textAlign: "right" }}>{c.score || 0}%</div>
+              </div>
+            ))}
+          </div>
+          <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+            <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 10, padding: 20 }}>
+              <div style={{ fontSize: 13, fontFamily: font.head, fontWeight: 700, marginBottom: 14 }}>Quick Actions</div>
+              {[
+                { label: "Upload New Resume", icon: "⬆", page: "upload" },
+                { label: "View Candidate List", icon: "☰", page: "listing" },
+                { label: "Review Resume", icon: "⊞", page: "review" },
+                { label: "JD Alignment Editor", icon: "🎯", page: "jdalign" },
+                { label: "Aligned Resumes", icon: "📊", page: "jdalignlist" },
+                { label: "Pipeline Status", icon: "⚙", page: "pipeline" },
+              ].map(a => (
+                <div key={a.label} onClick={() => setPage(a.page)} style={{ display: "flex", alignItems: "center", gap: 10, padding: "9px 12px", background: C.bg, borderRadius: 7, cursor: "pointer", marginBottom: 8 }}>
+                  <span>{a.icon}</span><span style={{ fontSize: 12, color: C.text, fontWeight: 500 }}>{a.label}</span>
+                </div>
+              ))}
+            </div>
+
+            {/* Domain Coverage Mini-Widget */}
+            {coverage && (
+              <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 10, padding: 18 }}>
+                <div style={{ fontSize: 13, fontFamily: font.head, fontWeight: 700, marginBottom: 10 }}>📊 Domain Coverage</div>
+                <div style={{ display: "flex", gap: 8, marginBottom: 12 }}>
+                  <div style={{ flex: 1, background: C.tealSoft, borderRadius: 8, padding: "8px 10px", textAlign: "center" }}>
+                    <div style={{ fontSize: 20, fontWeight: 800, color: C.teal }}>{coverage.fully_supported}</div>
+                    <div style={{ fontSize: 10, color: C.teal, marginTop: 2 }}>Full Support</div>
+                  </div>
+                  <div style={{ flex: 1, background: C.goldSoft, borderRadius: 8, padding: "8px 10px", textAlign: "center" }}>
+                    <div style={{ fontSize: 20, fontWeight: 800, color: "#b45309" }}>{coverage.analysis_only}</div>
+                    <div style={{ fontSize: 10, color: "#b45309", marginTop: 2 }}>Analysis Only</div>
+                  </div>
+                </div>
+                {coverage.domains.filter(d => !d.injection_supported).map(d => (
+                  <div key={d.name} style={{ fontSize: 11, color: C.muted, padding: "4px 0", borderBottom: `1px solid ${C.border}`, display: "flex", justifyContent: "space-between" }}>
+                    <span>🟡 {d.name}</span>
+                    <span style={{ color: C.gold, fontSize: 10 }}>Planned</span>
+                  </div>
+                ))}
+                <div
+                  onClick={() => setPage("settings")}
+                  style={{ marginTop: 10, fontSize: 11, color: C.accent, cursor: "pointer", textAlign: "center" }}
+                >
+                  View full coverage → Settings
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function PageUpload({ setPage, setSelectedId, startAI, stopAI }) {
+  const [file, setFile] = useState(null);
+  const [jds, setJds] = useState([]);
+  const [recruiters, setRecruiters] = useState([]);
+  const [selectedJD, setSelectedJD] = useState("");
+  const [recruiterName, setRecruiterName] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [result, setResult] = useState(null);
+  const [checked, setChecked] = useState({ image: false, email: false, mobile: false, summary: false });
+
+  useEffect(() => { api.getJDs().then(setJds); api.getRecruiters().then(setRecruiters); }, []);
+
+  const selectedJDObj = jds.find(j => j.id === Number(selectedJD));
+
+  const handleUpload = async () => {
+    if (!file) { alert("Please select a PDF resume."); return; }
+    if (!selectedJD) { alert("Please select a Job Description. Go to JD Manager to create one first."); return; }
+    setLoading(true);
+    const res = await api.uploadResume(file, Number(selectedJD), recruiterName.trim());
+    setLoading(false);
+    if (!res.success) { alert("Upload failed: " + (res.error || "Unknown error")); return; }
+    const ext = res.extracted || {};
+    setChecked({ image: false, email: !!ext.email, mobile: !!ext.mobile, summary: !!ext.summary });
+    if (setSelectedId) setSelectedId(res.candidate_id);
+    setResult(res);
+  };
+
+  return (
+    <div>
+      <Topbar title="Upload Resume" sub="Upload candidate PDF and select a Job Description" setPage={setPage} />
+      <div style={{ padding: 28, maxWidth: 860 }}>
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 20, marginBottom: 20 }}>
+          <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 10, padding: 24 }}>
+            <div style={{ fontSize: 14, fontFamily: font.head, fontWeight: 700, marginBottom: 16 }}>Candidate Resume (PDF)</div>
+            <label style={{ display: "block", border: `2px dashed ${file ? C.teal : C.border}`, borderRadius: 10, padding: "32px 20px", textAlign: "center", background: file ? C.tealSoft : C.bg, cursor: "pointer" }}>
+              <div style={{ fontSize: 36, marginBottom: 10 }}>📄</div>
+              <div style={{ fontSize: 13, color: C.muted }}>Click to upload PDF</div>
+              {file && <div style={{ marginTop: 10, color: C.teal, fontSize: 12, fontWeight: 600 }}>✓ {file.name}</div>}
+              <input type="file" accept=".pdf" style={{ display: "none" }} onChange={e => setFile(e.target.files[0])} />
+            </label>
+          </div>
+          <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 10, padding: 24 }}>
+            <div style={{ fontSize: 14, fontFamily: font.head, fontWeight: 700, marginBottom: 16 }}>Select Job Description</div>
+            {jds.length === 0 ? (
+              <div style={{ background: C.goldSoft, border: `1px solid ${C.gold}`, borderRadius: 8, padding: 14, fontSize: 12, color: C.text }}>
+                No JDs found. <span style={{ color: C.accent, cursor: "pointer", fontWeight: 700 }} onClick={() => setPage("jdmanager")}>Go to JD Manager →</span> to create one first.
+              </div>
+            ) : (
+              <>
+                <select value={selectedJD} onChange={e => setSelectedJD(e.target.value)} style={{ display: "block", width: "100%", padding: "9px 12px", border: `1px solid ${C.border}`, borderRadius: 6, fontSize: 13, background: C.bg, marginBottom: 12 }}>
+                  <option value="">-- Select JD --</option>
+                  {jds.map(jd => (
+                    <option key={jd.id} value={jd.id}>{jd.client_name} — {jd.job_title}</option>
+                  ))}
+                </select>
+                <label style={{ fontSize: 11, color: C.muted, textTransform: "uppercase", letterSpacing: "0.08em", display: "block", marginTop: 10 }}>Recruiter Name</label>
+                {recruiters.length === 0 ? (
+                  <div style={{ marginTop: 4, fontSize: 12, color: C.muted }}>No recruiters found. <span style={{ color: C.accent, cursor: "pointer", fontWeight: 700 }} onClick={() => setPage("jdmanager")}>Add recruiters in JD Manager →</span></div>
+                ) : (
+                  <select value={recruiterName} onChange={e => setRecruiterName(e.target.value)} style={{ display: "block", width: "100%", marginTop: 4, padding: "8px 12px", border: `1px solid ${C.border}`, borderRadius: 6, fontSize: 13, background: C.bg }}>
+                    <option value="">-- Select Recruiter --</option>
+                    {recruiters.map(r => <option key={r.id} value={r.name}>{r.name}</option>)}
+                  </select>
+                )}
+                {selectedJDObj && (
+                  <div style={{ background: C.bg, border: `1px solid ${C.border}`, borderRadius: 6, padding: 10, fontSize: 11, color: C.muted, maxHeight: 100, overflowY: "auto", fontFamily: font.mono, whiteSpace: "pre-wrap" }}>
+                    {selectedJDObj.jd_text.slice(0, 300)}{selectedJDObj.jd_text.length > 300 ? "..." : ""}
+                  </div>
+                )}
+              </>
+            )}
+          </div>
+        </div>
+
+        <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 10, padding: 20, marginBottom: 20 }}>
+          <div style={{ fontSize: 14, fontFamily: font.head, fontWeight: 700, marginBottom: 14 }}>After Upload → Cross Check</div>
+          <div style={{ display: "flex", gap: 16, flexWrap: "wrap" }}>
+            {[{ key: "image", label: "Profile Image", icon: "🖼" }, { key: "email", label: "Email ID", icon: "📧" }, { key: "mobile", label: "Mobile No", icon: "📱" }, { key: "summary", label: "Summary", icon: "📝" }].map(item => (
+              <div key={item.key} style={{ display: "flex", alignItems: "center", gap: 8, background: checked[item.key] ? C.tealSoft : C.bg, border: `1px solid ${checked[item.key] ? C.teal : C.border}`, borderRadius: 8, padding: "10px 16px", transition: "all 0.3s" }}>
+                <span style={{ fontSize: 16 }}>{item.icon}</span>
+                <span style={{ fontSize: 12, color: checked[item.key] ? C.teal : C.muted, fontWeight: checked[item.key] ? 600 : 400 }}>{checked[item.key] ? "✓ " : ""}{item.label}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {result && result.success && (
+          <div style={{ background: C.tealSoft, border: `1px solid ${C.teal}`, borderRadius: 10, padding: 16, marginBottom: 16 }}>
+            <div style={{ fontSize: 13, fontWeight: 700, color: C.teal, marginBottom: 8 }}>✅ Resume Uploaded Successfully!</div>
+            <div style={{ fontSize: 12, color: C.text, lineHeight: 1.8 }}>
+              <div><strong>Name:</strong> {result.extracted?.name || "Not detected"}</div>
+              <div><strong>Email:</strong> {result.extracted?.email || "Not detected"}</div>
+              <div><strong>Mobile:</strong> {result.extracted?.mobile || "Not detected"}</div>
+              <div><strong>Location:</strong> {result.extracted?.location || "Not detected"}</div>
+              <div style={{ marginTop: 8 }}>Go to <span style={{ color: C.accent, cursor: "pointer", fontWeight: 700 }} onClick={() => setPage("review")}>Review Resume →</span> to run AI analysis.</div>
+            </div>
+          </div>
+        )}
+
+        <div style={{ display: "flex", gap: 12 }}>
+          <Btn onClick={handleUpload} disabled={loading}>{loading ? "Uploading..." : "⬆ Upload Resume"}</Btn>
+          <Btn variant="ghost" onClick={() => setPage("dashboard")}>Cancel</Btn>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function PageListing({ setPage, setSelectedId, startAI, stopAI }) {
+  const [candidates, setCandidates] = useState([]);
+  const [filter, setFilter] = useState("All");
+  const [analyzing, setAnalyzing] = useState(null);
+  const [listPage, setListPage] = useState(0);
+  const LIST_PER_PAGE = 10;
+  useEffect(() => { api.getCandidates().then(setCandidates); }, []);
+  const statuses = ["All", "Uploaded", "Pending Review", "Bot Analyzed", "Approved"];
+  const filtered = filter === "All" ? candidates : candidates.filter(c => c.status === filter);
+  const paginated = filtered.slice(listPage * LIST_PER_PAGE, (listPage + 1) * LIST_PER_PAGE);
+  const runAnalysis = async (id) => {
+    const name = candidates.find(c => c.id === id)?.name || "candidate";
+    setAnalyzing(id);
+    startAI && startAI("Analyzing resume for " + name + "...");
+    const res = await api.analyze(id);
+    setAnalyzing(null);
+    stopAI && stopAI();
+    if (res.success) { alert("✅ AI Analysis complete!"); api.getCandidates().then(setCandidates); }
+    else alert("Analysis failed: " + (res.detail || res.error || "Error"));
+  };
+  return (
+    <div>
+      <Topbar title="Candidate List" sub="All uploaded resumes and AI analysis status" setPage={setPage} />
+      <div style={{ padding: 28 }}>
+        <div style={{ display: "flex", gap: 8, marginBottom: 20 }}>
+          {statuses.map(s => (
+            <button key={s} onClick={() => { setFilter(s); setListPage(0); }} style={{ padding: "6px 16px", borderRadius: 20, cursor: "pointer", border: filter === s ? `1px solid ${C.accent}` : `1px solid ${C.border}`, background: filter === s ? C.accentSoft : "transparent", color: filter === s ? C.accent : C.muted, fontSize: 12, fontWeight: 600 }}>{s}</button>
+          ))}
+        </div>
+        <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 10, overflow: "hidden" }}>
+          <div style={{ display: "grid", gridTemplateColumns: "2fr 1.2fr 1.2fr 0.8fr 0.8fr 1fr", padding: "10px 20px", background: C.bg, borderBottom: `1px solid ${C.border}` }}>
+            {["Candidate", "Company", "Role", "Tech Score", "Match", "Status"].map(h => (
+              <div key={h} style={{ fontSize: 10, color: C.muted, textTransform: "uppercase", letterSpacing: "0.1em", fontWeight: 700 }}>{h}</div>
+            ))}
+          </div>
+          {filtered.length === 0 && <div style={{ padding: 28, textAlign: "center", color: C.muted, fontSize: 13 }}>No candidates found.</div>}
+          {paginated.map((c, i) => (
+            <div key={c.id} style={{ display: "grid", gridTemplateColumns: "2fr 1.2fr 1.2fr 0.8fr 0.8fr 1fr", padding: "12px 20px", borderBottom: i < paginated.length - 1 ? `1px solid ${C.border}` : "none", alignItems: "center" }}>
+              <div onClick={() => { setSelectedId(c.id); setPage("review"); }} style={{ display: "flex", alignItems: "center", gap: 10, cursor: "pointer" }}>
+                <Avatar initials={(c.name || "??").slice(0, 2).toUpperCase()} size={30} />
+                <div>
+                  <div style={{ fontSize: 13, fontWeight: 600, color: C.accent }}>{c.name || "Unknown"}</div>
+                  <div style={{ fontSize: 10, color: C.muted }}>{c.created_at?.slice(0, 10) || ""}</div>
+                </div>
+              </div>
+              <div>
+                <div style={{ fontSize: 12, color: C.muted }}>{c.company_name || "N/A"}</div>
+                {c.recruiter_name && <div style={{ fontSize: 10, color: C.teal }}>👤 {c.recruiter_name}</div>}
+              </div>
+              <div style={{ fontSize: 12, color: C.muted, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }} title={c.role || ""}>{c.role || ""}</div>
+              <div style={{ fontSize: 13, fontWeight: 700, color: c.score >= 80 ? C.teal : c.score >= 70 ? C.gold : C.accent }}>{c.score || 0}%</div>
+              <Badge label={c.match_level || "N/A"} color={c.match_level === "High" ? C.teal : c.match_level === "Partial" ? "#e9a96a" : C.accent} bg={c.match_level === "High" ? C.tealSoft : c.match_level === "Partial" ? "#fef3e2" : C.accentSoft} />
+              <Badge label={c.status} color={c.status === "Approved" ? C.teal : c.status === "Bot Analyzed" ? "#7c6af7" : C.gold} bg={c.status === "Approved" ? C.tealSoft : c.status === "Bot Analyzed" ? "#eeecff" : C.goldSoft} />
+            </div>
+          ))}
+          <Pagination total={filtered.length} perPage={LIST_PER_PAGE} page={listPage} setPage={setListPage} />
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ── Resume section parser (client-side) ──────────────────────────────────────
+function parseSections(text) {
+  if (!text) return [];
+  const ORDER = ["Summary","Skills","Work Experience","Projects","Education","Certifications"];
+
+  // ━━━ structured format
+  if ((text.match(/━/g) || []).length > 10) {
+    const nameMap = {
+      "PROFESSIONAL SUMMARY": "Summary",
+      "TECHNICAL SKILLS": "Skills",
+      "WORK EXPERIENCE": "Work Experience",
+      "PROJECT SUMMARY": "Projects",
+      "EDUCATION": "Education",
+      "CERTIFICATIONS": "Certifications",
+    };
+    const parts = text.split(/━{5,}/).map(p => p.trim()).filter(Boolean);
+    const found = {};
+    for (let i = 0; i < parts.length; i++) {
+      const label = nameMap[parts[i].toUpperCase()];
+      if (label && i + 1 < parts.length) found[label] = parts[i + 1];
+    }
+    return ORDER.filter(k => found[k]).map(k => ({ label: k, content: found[k] }));
+  }
+
+  // Plain keyword fallback
+  const kwMap = {
+    "summary": "Summary", "professional summary": "Summary",
+    "objective": "Summary", "profile": "Summary", "about me": "Summary",
+    "skills": "Skills", "technical skills": "Skills",
+    "key skills": "Skills", "core competencies": "Skills", "expertise": "Skills",
+    "experience": "Work Experience", "work experience": "Work Experience",
+    "professional experience": "Work Experience", "employment": "Work Experience",
+    "project": "Projects", "project summary": "Projects", "projects": "Projects",
+    "education": "Education", "academic": "Education", "qualification": "Education",
+    "certif": "Certifications", "certification": "Certifications",
+    "achievement": "Certifications",
+  };
+  const lines = text.split("\n");
+  let current = null;
+  const buf = {};
+  for (const line of lines) {
+    const s = line.trim();
+    const lo = s.toLowerCase();
+    let matched = null;
+    for (const [kw, lbl] of Object.entries(kwMap)) {
+      if (lo.startsWith(kw) && s.length < 65) { matched = lbl; break; }
+    }
+    if (matched) { current = matched; buf[current] = buf[current] || []; }
+    else if (current && s) buf[current].push(s);
+  }
+  return ORDER.filter(k => buf[k]?.length).map(k => ({ label: k, content: buf[k].join("\n") }));
+}
+
+function sectionBadge(before, after) {
+  if (!after && !before) return null;
+  if (!after || after.trim() === (before || "").trim()) return { label: "unchanged", color: C.muted, bg: "#f0f0ee" };
+  const bWords = new Set((before || "").toLowerCase().split(/\s+/).filter(Boolean));
+  const aWords = new Set(after.toLowerCase().split(/\s+/).filter(Boolean));
+  const common = [...bWords].filter(w => aWords.has(w)).length;
+  const sim = bWords.size ? common / Math.max(bWords.size, aWords.size) : 0;
+  if (aWords.size > bWords.size * 1.25) return { label: "expanded", color: "#7c6af7", bg: "#eeecff" };
+  if (sim < 0.65) return { label: "improved", color: C.teal, bg: C.tealSoft };
+  return { label: "updated", color: C.gold, bg: C.goldSoft };
+}
+
+function SectionDiff({ beforeText, afterText }) {
+  const beforeSecs = parseSections(beforeText);
+  const afterSecs  = parseSections(afterText);
+
+  const allLabels = [...new Set([...beforeSecs.map(s => s.label), ...afterSecs.map(s => s.label)])];
+  const ORDER = ["Summary","Skills","Work Experience","Projects","Education","Certifications"];
+  const labels = [...ORDER.filter(l => allLabels.includes(l)), ...allLabels.filter(l => !ORDER.includes(l))];
+
+  const bMap = Object.fromEntries(beforeSecs.map(s => [s.label, s.content]));
+  const aMap = Object.fromEntries(afterSecs.map(s => [s.label, s.content]));
+
+  const noAfter = !afterText || afterText.trim().length < 10;
+
+  const colStyle = (tint) => ({
+    flex: 1, minWidth: 0, background: tint, border: `1px solid ${C.border}`,
+    borderRadius: 10, overflow: "hidden",
+  });
+  const hdrStyle = (color) => ({
+    padding: "12px 18px", borderBottom: `1px solid ${C.border}`,
+    fontSize: 11, fontWeight: 700, letterSpacing: "0.1em",
+    textTransform: "uppercase", color, background: "rgba(0,0,0,0.03)",
+  });
+
+  return (
+    <div style={{ display: "flex", gap: 16, alignItems: "flex-start" }}>
+      {/* BEFORE column */}
+      <div style={colStyle("#ffffff")}>
+        <div style={hdrStyle(C.muted)}>Before (Original)</div>
+        {labels.map((label, i) => {
+          const content = bMap[label] || "";
+          return (
+            <div key={label} style={{ borderBottom: i < labels.length - 1 ? `1px solid ${C.border}` : "none" }}>
+              <div style={{ padding: "10px 18px 4px", fontSize: 10, color: C.muted, fontWeight: 700, letterSpacing: "0.1em", textTransform: "uppercase" }}>
+                {label}
+              </div>
+              <div style={{ padding: "0 18px 14px", fontSize: 12, color: content ? C.text : C.muted, lineHeight: 1.7, whiteSpace: "pre-wrap", fontFamily: font.body }}>
+                {content || <em style={{ opacity: 0.4 }}>—</em>}
+              </div>
+            </div>
+          );
+        })}
+      </div>
+
+      {/* AFTER column */}
+      <div style={colStyle("#f5fffe")}>
+        <div style={hdrStyle(C.teal)}>After (AI Improved)</div>
+        {noAfter ? (
+          <div style={{ padding: 40, textAlign: "center", color: C.muted }}>
+            <div style={{ fontSize: 28, marginBottom: 10 }}>🤖</div>
+            <div style={{ fontSize: 13 }}>Click <strong>▶ Run AI</strong> to generate improvements</div>
+          </div>
+        ) : labels.map((label, i) => {
+          const before  = bMap[label] || "";
+          const after   = aMap[label] || "";
+          const badge   = sectionBadge(before, after);
+          return (
+            <div key={label} style={{ borderBottom: i < labels.length - 1 ? `1px solid ${C.border}` : "none" }}>
+              <div style={{ padding: "10px 18px 4px", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                <span style={{ fontSize: 10, color: C.muted, fontWeight: 700, letterSpacing: "0.1em", textTransform: "uppercase" }}>{label}</span>
+                {badge && (
+                  <span style={{ fontSize: 10, fontWeight: 700, color: badge.color, background: badge.bg, padding: "2px 10px", borderRadius: 20 }}>
+                    {badge.label}
+                  </span>
+                )}
+              </div>
+              <div style={{ padding: "0 18px 14px", fontSize: 12, color: after ? C.text : C.muted, lineHeight: 1.7, whiteSpace: "pre-wrap", fontFamily: font.body, background: badge && badge.label !== "unchanged" ? `${badge.bg}55` : "transparent", borderRadius: 6, margin: "0 8px 6px" }}>
+                {after || before || <em style={{ opacity: 0.4 }}>—</em>}
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+function PageReview({ setPage, selectedId, startAI, stopAI }) {
+  const [candidates, setCandidates] = useState([]);
+  const [candidate, setCandidate] = useState(null);
+  const [tab, setTab] = useState("diff");
+  const [editText, setEditText] = useState("");
+  const [botOpen, setBotOpen] = useState(false);
+  const [analyzing, setAnalyzing] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [adminContact, setAdminContact] = useState("");
+
+  useEffect(() => {
+    api.getCandidates().then(setCandidates);
+    fetch("/settings/admin-contact").then(r => r.json()).then(r => { if (r.success) setAdminContact(r.email || ""); });
+  }, []);
+  useEffect(() => {
+    if (selectedId) loadCandidate(selectedId);
+    else if (candidates.length > 0) loadCandidate(candidates[0].id);
+  }, [selectedId, candidates]);
+
+  const loadCandidate = async (id) => { const c = await api.getCandidate(id); setCandidate(c); setEditText(c.improved_resume_text || c.original_resume_text || ""); };
+  const runAnalysis = async () => {
+    if (!candidate) return;
+    setAnalyzing(true);
+    startAI && startAI("Analyzing resume for " + (candidate.name || "candidate") + "...");
+    const res = await api.analyze(candidate.id);
+    setAnalyzing(false);
+    stopAI && stopAI();
+    if (res.success) { loadCandidate(candidate.id); alert("✅ Analysis complete!"); }
+    else alert("Failed: " + (res.detail || res.error));
+  };
+  const handleApprove = async () => { if (!candidate) return; const res = await api.approve(candidate.id); if (res.success) { loadCandidate(candidate.id); alert("✅ Approved!"); } };
+  const handleSave = async () => { if (!candidate) return; setSaving(true); const res = await api.updateResume(candidate.id, editText); setSaving(false); if (res.success) alert("✅ Saved!"); else alert("Save failed!"); };
+
+  return (
+    <div>
+      <Topbar title="Review Resume" sub={candidate ? `${candidate.name || "Unknown"} · ${candidate.company_name || ""}` : "Select a candidate"} setPage={setPage} />
+      <div style={{ padding: "20px 28px" }}>
+        <div style={{ marginBottom: 16 }}>
+          <select onChange={e => loadCandidate(Number(e.target.value))} value={candidate?.id || ""} style={{ padding: "8px 12px", border: `1px solid ${C.border}`, borderRadius: 6, fontSize: 13, background: C.card, color: C.text }}>
+            {candidates.map(c => <option key={c.id} value={c.id}>{c.name || "Unknown"} — {c.company_name || "N/A"}</option>)}
+          </select>
+        </div>
+
+        {candidate && (
+          <>
+            <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 10, padding: "16px 20px", marginBottom: 16, display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 12 }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
+                <Avatar initials={(candidate.name || "??").slice(0, 2).toUpperCase()} size={44} />
+                <div>
+                  <div style={{ fontSize: 16, fontFamily: font.head, fontWeight: 700 }}>{candidate.name || "Unknown"}</div>
+                  {candidate.role && <div style={{ fontSize: 12, color: C.teal, fontWeight: 600, marginBottom: 2 }}>{candidate.role}</div>}
+                  <div style={{ fontSize: 12, color: C.muted, display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+                    <span title="ATS keyword match — what a scanner sees">
+                      🔤 ATS: <b style={{ color: candidate.score >= 75 ? C.teal : candidate.score >= 50 ? C.gold : C.accent }}>{candidate.score || 0}%</b>
+                    </span>
+                    {candidate.semantic_score != null && (
+                      <span title="Semantic meaning match — what the recruiter sees">
+                        🧠 Semantic: <b style={{ color: candidate.semantic_score >= 70 ? C.teal : candidate.semantic_score >= 45 ? C.gold : C.accent }}>{candidate.semantic_score}%</b>
+                      </span>
+                    )}
+                    <span>· {candidate.match_level || "N/A"} Match · {candidate.status}</span>
+                  </div>
+                  {candidate.email && <div style={{ fontSize: 11, color: C.muted }}>✉ {candidate.email} {candidate.mobile ? `· ✆ ${candidate.mobile}` : ""} {candidate.recruiter_name ? `· 👤 ${candidate.recruiter_name}` : ""}</div>}
+                </div>
+              </div>
+              <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+                <Btn onClick={() => setBotOpen(!botOpen)} variant="outline" small>🤖 Bot Agent</Btn>
+                <Btn onClick={runAnalysis} variant="outline" small disabled={analyzing}>{analyzing ? "⏳ Analyzing..." : "▶ Run AI"}</Btn>
+              </div>
+            </div>
+
+            {/* Domain detection banner — shown after analysis */}
+            {candidate.detected_domain && (
+              <div style={{
+                marginBottom: 12,
+                padding: "10px 16px",
+                borderRadius: 8,
+                display: "flex",
+                alignItems: "flex-start",
+                gap: 10,
+                background: candidate.injection_supported ? C.tealSoft : C.goldSoft,
+                border: `1px solid ${candidate.injection_supported ? C.teal + "44" : C.gold}`,
+              }}>
+                <span style={{ fontSize: 16, lineHeight: 1 }}>{candidate.injection_supported ? "🟢" : "🟡"}</span>
+                <div style={{ flex: 1 }}>
+                  <div style={{ fontSize: 12, fontWeight: 700, color: candidate.injection_supported ? C.teal : "#92400e", marginBottom: 2 }}>
+                    Detected Domain: {candidate.detected_domain}
+                    &nbsp;·&nbsp;
+                    {candidate.injection_supported ? "Full Support (Analysis + Injection)" : "Analysis Only"}
+                  </div>
+                  {!candidate.injection_supported && (
+                    <div style={{ fontSize: 11, color: "#92400e" }}>
+                      Gap detection and scoring work for all domains. Skill injection into resume is currently optimised for tech roles.
+                      {adminContact
+                        ? <> To request full support for this domain, contact: <b>{adminContact}</b></>
+                        : <> Contact the system administrator to request injection support for <b>{candidate.detected_domain}</b> roles.</>}
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
+
+            {/* Role Compatibility Badge */}
+            {candidate.candidate_function && candidate.jd_function && (() => {
+              const v = candidate.role_compatibility;
+              const cfg = {
+                compatible:   { bg: "#f0fdf4", border: "#22c55e", icon: "✅", label: "Role Match", color: "#166534" },
+                adjacent:     { bg: "#fffbea", border: "#f59e0b", icon: "⚠️", label: "Partial Match", color: "#92400e" },
+                incompatible: { bg: "#fef2f2", border: "#ef4444", icon: "❌", label: "Role Mismatch", color: "#991b1b" },
+              }[v] || { bg: C.card, border: C.border, icon: "🔍", label: "Role Check", color: C.muted };
+              return (
+                <div style={{ marginBottom: 12, padding: "10px 16px", borderRadius: 8, display: "flex", alignItems: "flex-start", gap: 10, background: cfg.bg, border: `1px solid ${cfg.border}` }}>
+                  <span style={{ fontSize: 16 }}>{cfg.icon}</span>
+                  <div style={{ flex: 1 }}>
+                    <div style={{ fontSize: 12, fontWeight: 700, color: cfg.color, marginBottom: 2 }}>
+                      {cfg.label} — Candidate: <b>{candidate.candidate_function}</b> &nbsp;·&nbsp; JD: <b>{candidate.jd_function}</b>
+                    </div>
+                    <div style={{ fontSize: 11, color: cfg.color }}>
+                      {v === "compatible" && "Strong fit — candidate role aligns directly with this JD."}
+                      {v === "adjacent"   && "Transferable skills exist but expect significant gaps. Alignment will highlight them."}
+                      {v === "incompatible" && "⚠ These roles are fundamentally different. JD alignment may produce misleading results. Verify the JD selection with the candidate."}
+                    </div>
+                  </div>
+                </div>
+              );
+            })()}
+
+            {/* Soft Gaps — skills you HAVE but phrased differently (semantic match) */}
+            {(candidate.soft_gaps || []).length > 0 && (
+              <div style={{ background: "#fff8ed", border: "1px solid #f59e0b55", borderRadius: 10, padding: 14, marginBottom: 12 }}>
+                <div style={{ fontSize: 12, fontWeight: 700, color: "#92400e", marginBottom: 10 }}>
+                  🔄 SOFT GAPS — You have related experience, just rephrase ({candidate.soft_gaps.length})
+                  <span style={{ fontSize: 10, fontWeight: 400, marginLeft: 8, color: "#b45309" }}>
+                    — detected by semantic analysis ({candidate.soft_gaps[0]?.similarity ? "neural" : "TF-IDF"} engine)
+                  </span>
+                </div>
+                <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                  {candidate.soft_gaps.map((sg, i) => (
+                    <div key={i} style={{ background: "#fffbeb", border: "1px solid #fcd34d", borderRadius: 8, padding: "10px 12px" }}>
+                      <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 4 }}>
+                        <span style={{ background: "#f59e0b22", color: "#92400e", border: "1px solid #f59e0b55", borderRadius: 10, padding: "2px 9px", fontSize: 11, fontWeight: 700 }}>
+                          {sg.keyword}
+                        </span>
+                        <span style={{ fontSize: 10, color: "#b45309" }}>
+                          {Math.round((sg.similarity || 0) * 100)}% semantic match
+                        </span>
+                      </div>
+                      <div style={{ fontSize: 11, color: "#78350f", lineHeight: 1.5 }}>
+                        <b>Your resume says:</b> "{sg.resume_match}"
+                      </div>
+                      <div style={{ fontSize: 11, color: "#92400e", marginTop: 4, fontWeight: 600 }}>
+                        ✏ {sg.suggestion}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {(candidate.gaps?.length > 0 || candidate.strengths?.length > 0) && (() => {
+              // Parse enriched gap format: "keyword (Nx) | JD says: \"context sentence\""
+              const parseGap = (raw) => {
+                const parts = raw.split(" | JD says: ");
+                const label = parts[0].trim();
+                const ctx   = parts[1] ? parts[1].replace(/^"|"$/g, '').trim() : "";
+                return { label, ctx };
+              };
+              const mustHaveRaw  = (candidate.gaps || []).filter(g => g.startsWith("[MUST HAVE]")).map(g => g.replace("[MUST HAVE] ", ""));
+              const niceToHaveRaw= (candidate.gaps || []).filter(g => g.startsWith("[NICE TO HAVE]")).map(g => g.replace("[NICE TO HAVE] ", ""));
+              const legacyGaps   = (candidate.gaps || []).filter(g => !g.startsWith("["));
+              const mustHave    = mustHaveRaw.map(parseGap);
+              const niceToHave  = niceToHaveRaw.map(parseGap);
+              return (
+                <div style={{ marginBottom: 16 }}>
+                  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginBottom: 12 }}>
+                    {candidate.strengths?.length > 0 && (
+                      <div style={{ background: C.tealSoft, border: `1px solid ${C.teal}44`, borderRadius: 10, padding: 14 }}>
+                        <div style={{ fontSize: 11, fontWeight: 700, color: C.teal, marginBottom: 8 }}>✅ Skills Matched ({candidate.strengths.length})</div>
+                        <div style={{ display: "flex", flexWrap: "wrap", gap: 5 }}>
+                          {candidate.strengths.map((s, i) => (
+                            <span key={i} style={{ background: C.teal + "22", color: C.teal, border: `1px solid ${C.teal}44`, borderRadius: 12, padding: "2px 8px", fontSize: 11 }}>{s.replace("Has: ", "")}</span>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                    <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                      {mustHave.length > 0 && (
+                        <div style={{ background: "#fff1f1", border: "1px solid #ef444444", borderRadius: 10, padding: 12 }}>
+                          <div style={{ fontSize: 11, fontWeight: 700, color: "#dc2626", marginBottom: 8 }}>🚨 MUST HAVE — Missing ({mustHave.length}) — CV may be rejected without these</div>
+                          <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                            {mustHave.map(({ label, ctx }, i) => (
+                              <div key={i}>
+                                <span style={{ background: "#dc262622", color: "#dc2626", border: "1px solid #dc262644", borderRadius: 12, padding: "2px 9px", fontSize: 11, fontWeight: 600 }}>{label}</span>
+                                {ctx && <div style={{ fontSize: 10, color: "#b91c1c", marginTop: 3, marginLeft: 4, fontStyle: "italic", lineHeight: 1.4 }}>"{ctx}"</div>}
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                      {niceToHave.length > 0 && (
+                        <div style={{ background: C.goldSoft, border: `1px solid ${C.gold}44`, borderRadius: 10, padding: 12 }}>
+                          <div style={{ fontSize: 11, fontWeight: 700, color: "#b45309", marginBottom: 8 }}>💡 NICE TO HAVE — Missing ({niceToHave.length}) — adds value if present</div>
+                          <div style={{ display: "flex", flexDirection: "column", gap: 5 }}>
+                            {niceToHave.map(({ label, ctx }, i) => (
+                              <div key={i}>
+                                <span style={{ background: C.gold + "33", color: "#92400e", border: `1px solid ${C.gold}`, borderRadius: 12, padding: "2px 9px", fontSize: 11 }}>{label}</span>
+                                {ctx && <div style={{ fontSize: 10, color: "#92400e", marginTop: 3, marginLeft: 4, fontStyle: "italic", lineHeight: 1.4 }}>"{ctx}"</div>}
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                      {legacyGaps.length > 0 && (
+                        <div style={{ background: C.accentSoft, border: `1px solid ${C.accent}44`, borderRadius: 10, padding: 12 }}>
+                          <div style={{ fontSize: 11, fontWeight: 700, color: C.accent, marginBottom: 6 }}>⚠ Gaps</div>
+                          {legacyGaps.map((g, i) => <div key={i} style={{ fontSize: 11, color: C.text, marginBottom: 3 }}>• {g}</div>)}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              );
+            })()}
+
+            {botOpen && (
+              <div style={{ background: "#1a1a2e", borderRadius: 10, padding: 20, marginBottom: 16 }}>
+                <div style={{ fontSize: 13, fontFamily: font.head, fontWeight: 700, color: "#fff", marginBottom: 12 }}>🤖 Bot Agent — Action Plan</div>
+                {(candidate.recommendations || []).length === 0 && <div style={{ color: "rgba(255,255,255,0.5)", fontSize: 12 }}>Run AI Analysis first to see the action plan.</div>}
+                {(candidate.recommendations || []).map((rec, i) => (
+                  <div key={i} style={{ background: rec.priority === "MUST HAVE" ? "rgba(220,38,38,0.12)" : "rgba(255,255,255,0.05)", border: rec.priority === "MUST HAVE" ? "1px solid rgba(220,38,38,0.3)" : "none", borderRadius: 8, padding: "12px 14px", marginBottom: 10 }}>
+                    <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 6 }}>
+                      {rec.priority === "MUST HAVE" && <span style={{ background: "#dc2626", color: "#fff", borderRadius: 4, padding: "1px 7px", fontSize: 10, fontWeight: 700 }}>MUST HAVE</span>}
+                      <span style={{ fontSize: 12, color: C.accent, fontWeight: 700 }}>{rec.section}</span>
+                    </div>
+                    <div style={{ fontSize: 11, color: "#f87171", marginBottom: 4 }}>⚠ {rec.issue}</div>
+                    <div style={{ fontSize: 11, color: "#4ade80" }}>✓ {rec.fix}</div>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            <div style={{ display: "flex", gap: 4, marginBottom: 0 }}>
+              {[{ id: "diff", label: "Before / After" }, { id: "edit", label: "Edit Mode" }].map(t => (
+                <button key={t.id} onClick={() => setTab(t.id)} style={{ padding: "7px 18px", borderRadius: "6px 6px 0 0", cursor: "pointer", border: `1px solid ${C.border}`, borderBottom: tab === t.id ? `1px solid ${C.card}` : `1px solid ${C.border}`, background: tab === t.id ? C.card : C.bg, color: tab === t.id ? C.text : C.muted, fontSize: 12, fontWeight: 600 }}>{t.label}</button>
+              ))}
+            </div>
+
+            {tab === "diff" && (
+              <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: "0 10px 10px 10px", padding: 16 }}>
+                <SectionDiff
+                  beforeText={candidate.original_resume_text || ""}
+                  afterText={candidate.improved_resume_text || ""}
+                />
+              </div>
+            )}
+
+            {tab === "edit" && (
+              <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: "0 10px 10px 10px", padding: 16 }}>
+                <div style={{ fontSize: 11, fontWeight: 700, color: C.text, marginBottom: 10 }}>Edit Resume — Make changes and save</div>
+                <textarea value={editText} onChange={e => setEditText(e.target.value)} style={{ width: "100%", height: 580, padding: "10px 12px", border: `1px solid ${C.accent}44`, borderRadius: 8, fontSize: 11, fontFamily: font.mono, background: C.bg, resize: "vertical", lineHeight: 1.6 }} />
+                <div style={{ display: "flex", gap: 10, marginTop: 12 }}>
+                  <Btn onClick={handleSave} variant="success" disabled={saving}>{saving ? "Saving..." : "💾 Save Changes"}</Btn>
+                </div>
+              </div>
+            )}
+          </>
+        )}
+
+        {!candidate && candidates.length === 0 && (
+          <div style={{ textAlign: "center", padding: 60, color: C.muted }}>
+            No candidates yet. <span style={{ color: C.accent, cursor: "pointer" }} onClick={() => setPage("upload")}>Upload a resume</span> to get started!
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function ResumePreview({ text }) {
+  const sections = parseSections(text || "");
+
+  // Extract header lines (name, role, contact) before first real section
+  const headerLines = [];
+  for (const line of (text || "").split("\n").slice(0, 12)) {
+    const s = line.trim();
+    if (!s || s.match(/━{3,}/)) continue;
+    const up = s.toUpperCase();
+    if (["PROFESSIONAL SUMMARY","TECHNICAL SKILLS","WORK EXPERIENCE","PROJECT SUMMARY","EDUCATION","CERTIFICATIONS"].includes(up)) break;
+    headerLines.push(s);
+  }
+
+  if (!text || (!sections.length && !headerLines.length)) {
+    return <div style={{ padding: 24, color: C.muted, fontSize: 12, textAlign: "center" }}>No content to preview.</div>;
+  }
+
+  const sectionIcons = { Summary: "📝", Skills: "⚡", "Work Experience": "💼", Projects: "🚀", Education: "🎓", Certifications: "🏆" };
+
+  return (
+    <div style={{ padding: "16px 20px", overflowY: "auto", maxHeight: 700 }}>
+      {headerLines.length > 0 && (
+        <div style={{ textAlign: "center", marginBottom: 18, paddingBottom: 14, borderBottom: `2px solid ${C.teal}44` }}>
+          {headerLines[0] && <div style={{ fontSize: 17, fontWeight: 700, color: C.sidebar, fontFamily: font.head, marginBottom: 3 }}>{headerLines[0]}</div>}
+          {headerLines[1] && !headerLines[1].includes("@") && !headerLines[1].match(/\d{8,}/) && (
+            <div style={{ fontSize: 12, color: C.accent, fontWeight: 600, marginBottom: 4 }}>{headerLines[1]}</div>
+          )}
+          {headerLines.slice(1).filter(l => l.includes("@") || l.includes("📧") || l.includes("📱") || l.includes("📍") || l.includes("linkedin")).map((l, i) => (
+            <div key={i} style={{ fontSize: 11, color: C.muted, marginTop: 2 }}>{l}</div>
+          ))}
+        </div>
+      )}
+      {sections.map((sec) => (
+        <div key={sec.label} style={{ marginBottom: 16 }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 6, paddingBottom: 5, borderBottom: `1px solid ${C.border}` }}>
+            <span style={{ fontSize: 13 }}>{sectionIcons[sec.label] || "📌"}</span>
+            <span style={{ fontSize: 10, fontWeight: 700, color: C.teal, letterSpacing: "0.12em", textTransform: "uppercase" }}>{sec.label}</span>
+          </div>
+          <div style={{ fontSize: 12, color: C.text, lineHeight: 1.8, whiteSpace: "pre-wrap", fontFamily: font.body }}>
+            {sec.content.split("\n").map((line, i) => {
+              const s = line.trim();
+              if (!s) return null;
+              const isBullet = /^[-•◦◆▪*]/.test(s);
+              const isDraft  = s.startsWith("[DRAFT");
+              return (
+                <div key={i} style={{ display: "flex", gap: 8, marginBottom: isBullet ? 3 : 5, color: isDraft ? C.gold : C.text }}>
+                  {isBullet && <span style={{ color: C.teal, flexShrink: 0, marginTop: 1 }}>•</span>}
+                  <span style={{ fontWeight: isDraft ? 600 : 400, fontStyle: isDraft ? "italic" : "normal" }}>
+                    {isBullet ? s.replace(/^[-•◦◆▪*]\s*/, "") : s}
+                  </span>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function PageJDAlign({ setPage, selectedId, startAI, stopAI, alignState, setAlignState }) {
+  const [candidates, setCandidates] = useState([]);
+  const [candidate, setCandidate] = useState(null);
+  const [draftText, setDraftText] = useState("");
+  const [generating, setGenerating] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [generated, setGenerated] = useState(false);
+  const [genStats, setGenStats] = useState(null);
+  const [draftView, setDraftView] = useState("edit");
+  const [roleCompat, setRoleCompat] = useState(null);
+  const [overrideCompat, setOverrideCompat] = useState(false);
+
+  useEffect(() => { api.getCandidates().then(setCandidates); }, []);
+
+  // Restore persisted alignment state when returning to this page
+  useEffect(() => {
+    if (alignState && alignState.draftText) {
+      setDraftText(alignState.draftText);
+      setGenStats(alignState.genStats || null);
+      setGenerated(true);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (selectedId) loadCandidate(selectedId);
+    else if (alignState?.candidateId) loadCandidate(alignState.candidateId);
+    else if (candidates.length > 0) loadCandidate(candidates[0].id);
+  }, [selectedId, candidates]);
+
+  const loadCandidate = async (id) => {
+    const c = await api.getCandidate(id);
+    setCandidate(c);
+    setOverrideCompat(false);
+    // Fetch role compatibility (uses cached DB value or detects live)
+    try {
+      const rc = await fetch(`/candidates/${id}/role-compatibility`).then(r => r.json());
+      setRoleCompat(rc);
+    } catch (_) {
+      setRoleCompat(null);
+    }
+    // If we have a persisted draft for this candidate, use it; otherwise use saved
+    if (alignState?.candidateId === id && alignState?.draftText) {
+      setDraftText(alignState.draftText);
+      setGenStats(alignState.genStats || null);
+      setGenerated(true);
+    } else {
+      setDraftText(c.manual_resume_text || "");
+      setGenerated(!!c.manual_resume_text);
+      const hist = c.align_history || [];
+      if (hist.length > 0) {
+        const last = hist[hist.length - 1];
+        setGenStats({ skills: last.added_skills || 0, projects: last.added_projects || 0, scoreBefore: last.score_before || 0, scoreAfter: last.score_after || 0, semBefore: last.sem_score_before ?? null, semAfter: last.sem_score_after ?? null, rephrased: last.rephrased_count || 0 });
+      } else {
+        setGenStats(null);
+      }
+    }
+  };
+
+  const handleGenerate = async () => {
+    if (!candidate) return;
+    setGenerating(true);
+    startAI && startAI("Generating JD-Aligned Resume for " + (candidate.name || "candidate") + "...");
+    const res = await api.generateJDAligned(candidate.id);
+    setGenerating(false);
+    stopAI && stopAI();
+    if (res.success) {
+      const stats = { skills: res.added_skills || 0, projects: res.added_projects || 0, scoreBefore: res.score_before || 0, scoreAfter: res.score_after || 0, semBefore: res.sem_score_before ?? null, semAfter: res.sem_score_after ?? null, rephrased: res.rephrased_count || 0 };
+      setDraftText(res.draft_resume);
+      setGenerated(true);
+      setGenStats(stats);
+      // Persist to App-level so navigating away and back doesn't lose the result
+      setAlignState && setAlignState({ draftText: res.draft_resume, genStats: stats, candidateId: candidate.id });
+      const updated = await api.getCandidate(candidate.id);
+      setCandidate(updated);
+    } else alert("Generation failed: " + (res.error || "Error"));
+  };
+
+  const handleSave = async () => {
+    if (!candidate || !draftText) return;
+    setSaving(true);
+    const res = await api.saveManualResume(candidate.id, draftText);
+    setSaving(false);
+    if (res.success) alert("✅ JD-Aligned resume saved! Click ⬇ Download to get Word doc.");
+    else alert("Save failed!");
+  };
+
+  return (
+    <div>
+      <Topbar title="JD Alignment & Resume Editor" sub="Generate and edit JD-aligned resume draft" setPage={setPage} />
+      <div style={{ padding: "20px 28px" }}>
+
+        <div style={{ background: "#fef3cd", border: "1px solid #e9c46a", borderRadius: 10, padding: "12px 20px", marginBottom: 20, display: "flex", alignItems: "center", gap: 12 }}>
+          <span style={{ fontSize: 20 }}>⚠️</span>
+          <div style={{ fontSize: 13, color: "#7a5c00" }}>
+            <strong>JD-Aligned Resume Draft</strong> — AI-generated draft for editing. Review all content carefully before saving and downloading. Label: <strong>"JD-Aligned Resume – User Edited"</strong>
+          </div>
+        </div>
+
+        <div style={{ marginBottom: 16 }}>
+          <select onChange={e => loadCandidate(Number(e.target.value))} value={candidate?.id || ""} style={{ padding: "8px 12px", border: `1px solid ${C.border}`, borderRadius: 6, fontSize: 13, background: C.card, color: C.text }}>
+            {candidates.map(c => <option key={c.id} value={c.id}>{c.name || "Unknown"} — {c.company_name || "N/A"}</option>)}
+          </select>
+        </div>
+
+        {roleCompat && roleCompat.verdict && (() => {
+          const isIncompat = roleCompat.verdict === "incompatible";
+          const isAdj = roleCompat.verdict === "adjacent";
+          const bg = isIncompat ? "#fef2f2" : isAdj ? "#fffbea" : "#f0fdf4";
+          const border = isIncompat ? "#ef4444" : isAdj ? "#f59e0b" : "#22c55e";
+          const icon = isIncompat ? "❌" : isAdj ? "⚠️" : "✅";
+          const textColor = isIncompat ? "#991b1b" : isAdj ? "#92400e" : "#166534";
+          return (
+            <div style={{ background: bg, border: `1px solid ${border}`, borderRadius: 10, padding: "14px 20px", marginBottom: 16 }}>
+              <div style={{ display: "flex", alignItems: "flex-start", gap: 12 }}>
+                <span style={{ fontSize: 22, flexShrink: 0, marginTop: 1 }}>{icon}</span>
+                <div style={{ flex: 1 }}>
+                  <div style={{ fontSize: 14, fontWeight: 700, color: textColor, marginBottom: 4 }}>
+                    {isIncompat ? "Role Mismatch Detected" : isAdj ? "Partial Role Match" : "Role Match Confirmed"}
+                  </div>
+                  <div style={{ fontSize: 13, color: textColor, marginBottom: 6 }}>
+                    {roleCompat.message}
+                  </div>
+                  <div style={{ display: "flex", gap: 16, fontSize: 12, color: textColor }}>
+                    <span>Candidate: <strong>{roleCompat.candidate_function || "—"}</strong></span>
+                    <span>JD Requires: <strong>{roleCompat.jd_function || "—"}</strong></span>
+                  </div>
+                  {isIncompat && !overrideCompat && (
+                    <div style={{ marginTop: 10 }}>
+                      <span style={{ fontSize: 12, color: textColor, marginRight: 12 }}>Generation blocked. Recruiter override required.</span>
+                      <button onClick={() => setOverrideCompat(true)} style={{ fontSize: 12, padding: "4px 14px", background: "#ef4444", color: "#fff", border: "none", borderRadius: 6, cursor: "pointer", fontWeight: 600 }}>
+                        Override & Generate Anyway
+                      </button>
+                    </div>
+                  )}
+                  {isIncompat && overrideCompat && (
+                    <div style={{ marginTop: 8, fontSize: 12, color: "#b91c1c", fontWeight: 600 }}>
+                      ⚠ Override active — generating despite role mismatch.
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+          );
+        })()}
+
+        {candidate && (
+          <>
+            <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 10, padding: "16px 20px", marginBottom: 16, display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 12 }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
+                <Avatar initials={(candidate.name || "??").slice(0, 2).toUpperCase()} size={44} />
+                <div>
+                  <div style={{ fontSize: 16, fontFamily: font.head, fontWeight: 700 }}>{candidate.name || "Unknown"}</div>
+                  {candidate.role && <div style={{ fontSize: 12, color: C.teal, fontWeight: 600, marginBottom: 2 }}>{candidate.role}</div>}
+                  <div style={{ fontSize: 12, color: C.muted }}>
+                    {candidate.score > 0 ? `Tech Score: ${candidate.score}%` : "Not yet analyzed"} · {candidate.company_name || ""} · {candidate.status}
+                    {candidate.recruiter_name && <span style={{ marginLeft: 8 }}>· 👤 {candidate.recruiter_name}</span>}
+                    {candidate.align_history?.length > 0 && <span style={{ marginLeft: 8, color: C.teal }}>· {candidate.align_history.length} alignment run{candidate.align_history.length > 1 ? "s" : ""}</span>}
+                  </div>
+                  {candidate.match_level && <Badge label={`${candidate.match_level} Match`} color={candidate.match_level === "High" ? C.teal : C.gold} bg={candidate.match_level === "High" ? C.tealSoft : C.goldSoft} />}
+                </div>
+              </div>
+              <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+                <Btn onClick={handleGenerate} variant="primary" disabled={generating || (roleCompat?.verdict === "incompatible" && !overrideCompat)}>{generating ? "⏳ Generating..." : "🧠 Generate JD Draft"}</Btn>
+                <Btn onClick={handleSave} variant="success" disabled={saving || !draftText}>{saving ? "Saving..." : "💾 Save Draft"}</Btn>
+                <Btn onClick={() => api.downloadResume(candidate.id)} variant="outline" disabled={!generated}>⬇ Download .docx</Btn>
+              </div>
+            </div>
+
+            {genStats && (
+              <div style={{ background: C.tealSoft, border: `1px solid ${C.teal}`, borderRadius: 10, padding: "12px 20px", marginBottom: 16 }}>
+                <div style={{ display: "flex", gap: 24, alignItems: "center", flexWrap: "wrap", marginBottom: 8 }}>
+                  <span style={{ fontSize: 13, fontWeight: 700, color: C.teal }}>✅ JD Alignment Complete</span>
+                  <span style={{ fontSize: 12, color: C.text }}>🔑 <strong>{genStats.skills}</strong> new keywords injected</span>
+                  {genStats.rephrased > 0 && <span style={{ fontSize: 12, color: C.text }}>✏️ <strong>{genStats.rephrased}</strong> soft gaps rephrased</span>}
+                  <span style={{ fontSize: 12, color: C.text }}>🚀 <strong>{genStats.projects}</strong> draft projects added</span>
+                </div>
+                {genStats.scoreBefore > 0 && (
+                  <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                    <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                      <span style={{ fontSize: 11, color: C.muted, width: 120 }}>🔤 ATS Match:</span>
+                      <span style={{ fontSize: 13, fontWeight: 700, color: C.accent }}>{genStats.scoreBefore}%</span>
+                      <span style={{ fontSize: 12, color: C.muted }}>→</span>
+                      <span style={{ fontSize: 13, fontWeight: 700, color: C.teal }}>{genStats.scoreAfter}%</span>
+                      <span style={{ fontSize: 11, color: C.teal }}>(+{genStats.scoreAfter - genStats.scoreBefore}%)</span>
+                    </div>
+                    {genStats.semBefore != null && (
+                      <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                        <span style={{ fontSize: 11, color: C.muted, width: 120 }}>🧠 Semantic:</span>
+                        <span style={{ fontSize: 13, fontWeight: 700, color: C.accent }}>{genStats.semBefore}%</span>
+                        <span style={{ fontSize: 12, color: C.muted }}>→</span>
+                        <span style={{ fontSize: 13, fontWeight: 700, color: C.teal }}>{genStats.semAfter}%</span>
+                        <span style={{ fontSize: 11, color: C.teal }}>(+{(genStats.semAfter - genStats.semBefore).toFixed(1)}%)</span>
+                      </div>
+                    )}
+                  </div>
+                )}
+                <div style={{ fontSize: 11, color: C.muted, marginTop: 6 }}>Review the draft → edit content marked [DRAFT] → Save Draft</div>
+                {(candidate?.align_history?.length > 1) && (
+                  <div style={{ marginTop: 12, borderTop: `1px solid ${C.teal}44`, paddingTop: 10 }}>
+                    <div style={{ fontSize: 11, fontWeight: 700, color: C.teal, marginBottom: 8 }}>📊 All Alignment Runs — History</div>
+                    <div style={{ display: "grid", gridTemplateColumns: "0.4fr 1fr 1fr 1fr 1fr 1fr", gap: "4px 12px", fontSize: 11 }}>
+                      <span style={{ color: C.muted, fontWeight: 700 }}>Run</span>
+                      <span style={{ color: C.muted, fontWeight: 700 }}>Date & Time</span>
+                      <span style={{ color: C.muted, fontWeight: 700 }}>🔤 ATS Before→After</span>
+                      <span style={{ color: C.muted, fontWeight: 700 }}>🧠 Semantic Before→After</span>
+                      <span style={{ color: C.muted, fontWeight: 700 }}>New Keywords</span>
+                      <span style={{ color: C.muted, fontWeight: 700 }}>Rephrased</span>
+                      {[...(candidate.align_history || [])].reverse().map((h, i) => (
+                        <React.Fragment key={i}>
+                          <span style={{ color: C.text }}>#{h.run}</span>
+                          <span style={{ color: C.text }}>{h.timestamp}</span>
+                          <span style={{ color: C.teal, fontWeight: 600 }}>{h.score_before}% → {h.score_after}%</span>
+                          <span style={{ color: C.teal, fontWeight: 600 }}>{h.sem_score_before != null ? `${h.sem_score_before}% → ${h.sem_score_after}%` : "—"}</span>
+                          <span style={{ color: C.text }}>{h.added_skills} skills · {h.added_projects} proj</span>
+                          <span style={{ color: C.text }}>{h.rephrased_count || 0} bullets</span>
+                        </React.Fragment>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {candidate.gaps?.length > 0 && (() => {
+              const mustHave   = (candidate.gaps||[]).filter(g=>g.startsWith("[MUST HAVE]")).map(g=>g.replace("[MUST HAVE] ",""));
+              const niceToHave = (candidate.gaps||[]).filter(g=>g.startsWith("[NICE TO HAVE]")).map(g=>g.replace("[NICE TO HAVE] ",""));
+              const legacy     = (candidate.gaps||[]).filter(g=>!g.startsWith("["));
+              return (
+                <div style={{ marginBottom: 16 }}>
+                  {mustHave.length > 0 && (
+                    <div style={{ background: "#fff1f1", border: "1px solid #ef444444", borderRadius: 10, padding: 14, marginBottom: 8 }}>
+                      <div style={{ fontSize: 11, fontWeight: 700, color: "#dc2626", marginBottom: 8 }}>🚨 MUST HAVE — CV will likely be rejected without these ({mustHave.length})</div>
+                      <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+                        {mustHave.map((g,i) => <Badge key={i} label={g} color="#dc2626" bg="#fee2e2" />)}
+                      </div>
+                    </div>
+                  )}
+                  {niceToHave.length > 0 && (
+                    <div style={{ background: C.goldSoft, border: `1px solid ${C.gold}`, borderRadius: 10, padding: 14, marginBottom: 8 }}>
+                      <div style={{ fontSize: 11, fontWeight: 700, color: "#b45309", marginBottom: 8 }}>💡 NICE TO HAVE — Strengthens profile ({niceToHave.length})</div>
+                      <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+                        {niceToHave.map((g,i) => <Badge key={i} label={g} color="#b45309" bg="#fef3c7" />)}
+                      </div>
+                    </div>
+                  )}
+                  {legacy.length > 0 && (
+                    <div style={{ background: C.accentSoft, border: `1px solid ${C.accent}44`, borderRadius: 10, padding: 14 }}>
+                      <div style={{ fontSize: 11, fontWeight: 700, color: C.accent, marginBottom: 8 }}>⚠ Gaps — will be injected into draft</div>
+                      <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+                        {legacy.map((g,i) => <Badge key={i} label={g} color={C.accent} bg="#fff" />)}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              );
+            })()}
+
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
+
+              {/* ── LEFT: Original Resume — structured preview ── */}
+              <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 10, overflow: "hidden" }}>
+                <div style={{ padding: "10px 16px", borderBottom: `1px solid ${C.border}`, display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+                  <span style={{ fontSize: 11, color: C.muted, fontWeight: 700, letterSpacing: "0.08em" }}>ORIGINAL RESUME</span>
+                  <Badge label="Read Only" color={C.muted} bg={C.bg} />
+                </div>
+                <ResumePreview text={candidate.original_resume_text || ""} />
+              </div>
+
+              {/* ── RIGHT: JD-Aligned Draft — edit + preview toggle ── */}
+              <div style={{ background: C.card, border: `1px solid ${C.teal}44`, borderRadius: 10, overflow: "hidden" }}>
+                <div style={{ padding: "8px 16px", borderBottom: `1px solid ${C.border}`, display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+                  <span style={{ fontSize: 11, color: C.teal, fontWeight: 700, letterSpacing: "0.08em" }}>JD-ALIGNED DRAFT</span>
+                  <div style={{ display: "flex", gap: 4, alignItems: "center" }}>
+                    {generated && <Badge label="✓ Draft Ready" color={C.teal} bg={C.tealSoft} />}
+                    {draftText && (
+                      <div style={{ display: "flex", background: C.bg, borderRadius: 6, border: `1px solid ${C.border}`, overflow: "hidden", marginLeft: 8 }}>
+                        {[{ id: "edit", label: "✏ Edit" }, { id: "preview", label: "👁 Preview" }].map(v => (
+                          <button key={v.id} onClick={() => setDraftView(v.id)} style={{ padding: "4px 12px", fontSize: 11, fontWeight: 600, border: "none", cursor: "pointer", background: draftView === v.id ? C.teal : "transparent", color: draftView === v.id ? "#fff" : C.muted }}>
+                            {v.label}
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                {!draftText && !generating && (
+                  <div style={{ padding: 40, textAlign: "center", color: C.muted }}>
+                    <div style={{ fontSize: 36, marginBottom: 12 }}>🧠</div>
+                    <div style={{ fontSize: 14, marginBottom: 6, fontWeight: 600 }}>Click Generate JD Draft above</div>
+                    <div style={{ fontSize: 12 }}>AI will align the resume to the Job Description</div>
+                  </div>
+                )}
+
+                {generating && (
+                  <div style={{ padding: 40, textAlign: "center", color: C.muted }}>
+                    <div style={{ fontSize: 36, marginBottom: 12 }}>⏳</div>
+                    <div style={{ fontSize: 14, fontWeight: 600 }}>Generating JD-aligned resume...</div>
+                    <div style={{ fontSize: 12, marginTop: 8 }}>This may take 2–3 minutes with local LLM</div>
+                  </div>
+                )}
+
+                {draftText && !generating && draftView === "edit" && (
+                  <textarea value={draftText} onChange={e => setDraftText(e.target.value)}
+                    style={{ width: "100%", height: 700, padding: "12px 16px", border: "none", fontSize: 11, fontFamily: font.mono, background: "#f7fffe", resize: "vertical", outline: "none", lineHeight: 1.7 }} />
+                )}
+
+                {draftText && !generating && draftView === "preview" && (
+                  <ResumePreview text={draftText} />
+                )}
+              </div>
+            </div>
+
+            <div style={{ background: C.sidebar, borderRadius: 10, padding: 20, marginTop: 16 }}>
+              <div style={{ fontSize: 11, color: "rgba(255,255,255,0.4)", letterSpacing: "0.12em", textTransform: "uppercase", marginBottom: 12 }}>📋 Word Doc Resume Format — Sections included in download</div>
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 10 }}>
+                {[
+                  { icon: "👤", label: "Candidate Name" },
+                  { icon: "📧", label: "Contact Details" },
+                  { icon: "📍", label: "Location" },
+                  { icon: "🔗", label: "LinkedIn" },
+                  { icon: "📝", label: "Professional Summary" },
+                  { icon: "⚡", label: "Technical Skills" },
+                  { icon: "💼", label: "Work Experience" },
+                  { icon: "🚀", label: "Project Summary" },
+                  { icon: "🎓", label: "Education Details" },
+                  { icon: "🏆", label: "Certifications" },
+                  { icon: "📌", label: "Version Label" },
+                  { icon: "✅", label: "HR Reviewed" },
+                ].map((s, i) => (
+                  <div key={i} style={{ background: "rgba(255,255,255,0.05)", borderRadius: 8, padding: "10px 14px", display: "flex", alignItems: "center", gap: 8 }}>
+                    <span style={{ fontSize: 16 }}>{s.icon}</span>
+                    <span style={{ fontSize: 11, color: "#fff" }}>{s.label}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </>
+        )}
+
+        {!candidate && candidates.length === 0 && (
+          <div style={{ textAlign: "center", padding: 60, color: C.muted }}>
+            No candidates yet. <span style={{ color: C.accent, cursor: "pointer" }} onClick={() => setPage("upload")}>Upload a resume</span> to get started!
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function PagePipeline({ setPage, ollamaOnline, ollamaProvider }) {
+  const [candidates, setCandidates] = useState([]);
+  useEffect(() => { api.getCandidates().then(setCandidates); }, []);
+  const providerLabel = ollamaProvider === "groq" ? "Groq Cloud ⚡" : ollamaProvider === "nvidia" ? "NVIDIA NIM 🟢" : ollamaProvider === "gemini" ? "Google Gemini ✦" : ollamaProvider === "azure" ? "Azure OpenAI ☁" : "Ollama (Local) 🦙";
+  const providerDetail = ollamaOnline
+    ? (ollamaProvider === "groq" ? "api.groq.com · Llama 70B" : ollamaProvider === "nvidia" ? "integrate.api.nvidia.com" : ollamaProvider === "gemini" ? "generativelanguage.googleapis.com" : ollamaProvider === "azure" ? "Azure OpenAI endpoint" : "Running locally")
+    : (ollamaProvider === "ollama" ? "Ollama not detected" : "API key not configured");
+  return (
+    <div>
+      <Topbar title="Pipeline Status" sub="AI pipeline and system status" setPage={setPage} />
+      <div style={{ padding: 28 }}>
+        <div style={{ display: "flex", gap: 16, flexWrap: "wrap", marginBottom: 24 }}>
+          <StatCard label="Total Processed" value={candidates.length} color={C.teal} />
+          <StatCard label="AI Analyzed" value={candidates.filter(c => c.status === "Bot Analyzed").length} color="#7c6af7" />
+          <StatCard label="Approved" value={candidates.filter(c => c.status === "Approved").length} color={C.gold} />
+          <StatCard label="JD Aligned" value={candidates.filter(c => c.resume_version_type === "AI_SIMULATED").length} color={C.accent} />
+        </div>
+        <div style={{ background: C.sidebar, borderRadius: 10, padding: 24 }}>
+          <div style={{ fontSize: 12, color: "rgba(255,255,255,0.4)", letterSpacing: "0.12em", textTransform: "uppercase", marginBottom: 16 }}>System Status</div>
+          {[
+            { label: "FastAPI Backend", status: true, detail: "http://127.0.0.1:8000" },
+            { label: providerLabel, status: ollamaOnline, detail: providerDetail },
+            { label: "SQLite Database", status: true, detail: "cms.db connected" },
+            { label: "Word Doc Generator", status: true, detail: "python-docx ready" },
+            { label: "Upload Folder", status: true, detail: "./uploads" },
+          ].map((s, i) => (
+            <div key={i} style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 12, padding: "10px 14px", background: "rgba(255,255,255,0.04)", borderRadius: 8 }}>
+              <div style={{ width: 10, height: 10, borderRadius: "50%", background: s.status ? "#4ade80" : "#ef4444", flexShrink: 0 }} />
+              <div style={{ flex: 1 }}>
+                <div style={{ fontSize: 13, color: "#fff", fontWeight: 600 }}>{s.label}</div>
+                <div style={{ fontSize: 11, color: "rgba(255,255,255,0.4)" }}>{s.detail}</div>
+              </div>
+              <Badge label={s.status ? "Online" : "Offline"} color={s.status ? "#4ade80" : "#ef4444"} bg="rgba(255,255,255,0.05)" />
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function CredentialsSection() {
+  const [newUser, setNewUser] = useState("");
+  const [newPass, setNewPass] = useState("");
+  const [confirmPass, setConfirmPass] = useState("");
+  const [showPwd, setShowPwd] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [msg, setMsg] = useState(null);
+
+  const handleSave = async () => {
+    if (!newUser.trim()) { setMsg({ ok: false, text: "Username cannot be empty." }); return; }
+    if (newPass.length < 4) { setMsg({ ok: false, text: "Password must be at least 4 characters." }); return; }
+    if (newPass !== confirmPass) { setMsg({ ok: false, text: "Passwords do not match." }); return; }
+    setSaving(true); setMsg(null);
+    const res = await api.changeCredentials(newUser.trim(), newPass);
+    setSaving(false);
+    if (res.success) {
+      setMsg({ ok: true, text: "Credentials updated. You will be logged out — please sign in again." });
+      setNewUser(""); setNewPass(""); setConfirmPass("");
+      setTimeout(() => {
+        localStorage.removeItem("cms_token");
+        localStorage.removeItem("cms_username");
+        window.location.reload();
+      }, 2000);
+    } else {
+      setMsg({ ok: false, text: res.error || "Failed to save credentials." });
+    }
+  };
+
+  return (
+    <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 10, overflow: "hidden", marginBottom: 20 }}>
+      <div style={{ padding: "14px 20px", borderBottom: `1px solid ${C.border}`, fontSize: 14, fontFamily: font.head, fontWeight: 700 }}>🔐 Login Credentials</div>
+      <div style={{ padding: 20 }}>
+        <div style={{ fontSize: 12, color: C.muted, marginBottom: 16 }}>Change the username and password used to log in to this portal. After saving you will be signed out and need to log in again.</div>
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 14, marginBottom: 16 }}>
+          <div>
+            <label style={{ fontSize: 11, color: C.muted, textTransform: "uppercase", letterSpacing: "0.08em" }}>New Username</label>
+            <input type="text" value={newUser} onChange={e => setNewUser(e.target.value)} placeholder="Enter new username"
+              style={{ display: "block", width: "100%", marginTop: 4, padding: "9px 12px", border: `1px solid ${C.border}`, borderRadius: 6, fontSize: 13, fontFamily: font.body }} />
+          </div>
+          <div>
+            <label style={{ fontSize: 11, color: C.muted, textTransform: "uppercase", letterSpacing: "0.08em" }}>New Password</label>
+            <div style={{ display: "flex", gap: 6, marginTop: 4 }}>
+              <input type={showPwd ? "text" : "password"} value={newPass} onChange={e => setNewPass(e.target.value)} placeholder="New password"
+                style={{ flex: 1, padding: "9px 12px", border: `1px solid ${C.border}`, borderRadius: 6, fontSize: 13, fontFamily: font.body }} />
+              <button onClick={() => setShowPwd(!showPwd)} style={{ padding: "9px 12px", border: `1px solid ${C.border}`, borderRadius: 6, cursor: "pointer", background: C.bg, fontSize: 13 }}>{showPwd ? "🙈" : "👁"}</button>
+            </div>
+          </div>
+          <div>
+            <label style={{ fontSize: 11, color: C.muted, textTransform: "uppercase", letterSpacing: "0.08em" }}>Confirm Password</label>
+            <input type={showPwd ? "text" : "password"} value={confirmPass} onChange={e => setConfirmPass(e.target.value)} placeholder="Repeat password"
+              style={{ display: "block", width: "100%", marginTop: 4, padding: "9px 12px", border: `1px solid ${C.border}`, borderRadius: 6, fontSize: 13, fontFamily: font.body }} />
+          </div>
+        </div>
+        {msg && (
+          <div style={{ background: msg.ok ? C.tealSoft : "#fde8ea", border: `1px solid ${msg.ok ? C.teal : C.accent}`, borderRadius: 7, padding: "9px 14px", fontSize: 13, color: msg.ok ? C.teal : C.accent, marginBottom: 12 }}>{msg.text}</div>
+        )}
+        <Btn onClick={handleSave} disabled={saving}>{saving ? "Saving…" : "Update Credentials"}</Btn>
+      </div>
+    </div>
+  );
+}
+
+function PageSettings({ setPage, onSave }) {
+  const [cfg, setCfg] = useState(null);
+  const [provider, setProvider] = useState("ollama");
+  const [ollamaUrl, setOllamaUrl] = useState("http://localhost:11434");
+  const [ollamaModel, setOllamaModel] = useState("qwen2.5:0.5b");
+  const [geminiKey, setGeminiKey] = useState("");
+  const [geminiModel, setGeminiModel] = useState("gemini-1.5-flash");
+  const [azureEndpoint, setAzureEndpoint] = useState("");
+  const [azureKey, setAzureKey] = useState("");
+  const [azureDeployment, setAzureDeployment] = useState("gpt-4o");
+  const [azureApiVersion, setAzureApiVersion] = useState("2024-08-01-preview");
+  const [groqKey, setGroqKey] = useState("");
+  const [groqModel, setGroqModel] = useState("llama-3.3-70b-versatile");
+  const [nvidiaKey, setNvidiaKey] = useState("");
+  const [nvidiaModel, setNvidiaModel] = useState("meta/llama-3.1-70b-instruct");
+  const [showGroqKey, setShowGroqKey] = useState(false);
+  const [showNvidiaKey, setShowNvidiaKey] = useState(false);
+  const [adminEmail, setAdminEmail] = useState("");
+  const [saving, setSaving] = useState(false);
+  const [testing, setTesting] = useState(false);
+  const [testResult, setTestResult] = useState(null);
+  const [showGeminiKey, setShowGeminiKey] = useState(false);
+  const [showAzureKey, setShowAzureKey] = useState(false);
+  const [coverage, setCoverage] = useState(null);
+  const [coverageOpen, setCoverageOpen] = useState(false);
+  const [semStatus, setSemStatus] = useState(null);
+
+  const loadSettings = () => api.getSettings().then(res => {
+    if (res.success && res.data) {
+      const d = res.data;
+      setProvider(d.provider || "ollama");
+      setOllamaUrl(d.ollama_url || "http://localhost:11434");
+      setOllamaModel(d.ollama_model || "qwen2.5:0.5b");
+      setGeminiModel(d.gemini_model || "gemini-1.5-flash");
+      setAzureEndpoint(d.azure_endpoint || "");
+      setAzureDeployment(d.azure_deployment || "gpt-4o");
+      setAzureApiVersion(d.azure_api_version || "2024-08-01-preview");
+      setGroqModel(d.groq_model || "llama-3.3-70b-versatile");
+      setNvidiaModel(d.nvidia_model || "meta/llama-3.1-70b-instruct");
+      setAdminEmail(d.admin_contact_email || "");
+      setCfg(d);
+    }
+  });
+
+  const loadCoverage = () => fetch("/settings/domain-coverage")
+    .then(r => r.json()).then(r => { if (r.success) setCoverage(r.data); });
+
+  const loadSemStatus = () => fetch("/settings/semantic-status")
+    .then(r => r.json()).then(r => setSemStatus(r));
+
+  useEffect(() => { loadSettings(); loadCoverage(); loadSemStatus(); }, []);
+
+  // Auto-save provider selection immediately when card is clicked
+  const switchProvider = async (id) => {
+    setProvider(id);
+    setTestResult(null);
+    await api.saveSettings({ provider: id });
+    if (onSave) onSave();
+  };
+
+  const handleSave = async () => {
+    setSaving(true); setTestResult(null);
+    const payload = {
+      provider,
+      ollama_url: ollamaUrl, ollama_model: ollamaModel,
+      gemini_model: geminiModel,
+      azure_endpoint: azureEndpoint, azure_deployment: azureDeployment, azure_api_version: azureApiVersion,
+      groq_model: groqModel,
+      nvidia_model: nvidiaModel,
+      admin_contact_email: adminEmail.trim(),
+    };
+    if (geminiKey.trim())  payload.gemini_api_key  = geminiKey.trim();
+    if (azureKey.trim())   payload.azure_api_key   = azureKey.trim();
+    if (groqKey.trim())    payload.groq_api_key    = groqKey.trim();
+    if (nvidiaKey.trim())  payload.nvidia_api_key  = nvidiaKey.trim();
+    const res = await api.saveSettings(payload);
+    setSaving(false);
+    if (res.success) {
+      setGeminiKey(""); setAzureKey(""); setGroqKey(""); setNvidiaKey("");
+      await loadSettings();
+      if (onSave) onSave();
+    } else alert("Failed to save: " + (res.error || "Error"));
+  };
+
+  const handleTest = async () => {
+    setTesting(true); setTestResult(null);
+    const res = await api.testConnection();
+    setTesting(false);
+    setTestResult(res);
+  };
+
+  const inp = (val, set, ph, type="text") => (
+    <input type={type} value={val} onChange={e => set(e.target.value)} placeholder={ph}
+      style={{ display: "block", width: "100%", marginTop: 4, padding: "9px 12px", border: `1px solid ${C.border}`, borderRadius: 6, fontSize: 13, fontFamily: font.mono, background: C.bg }} />
+  );
+
+  const KeyField = ({ value, onChange, masked, show, setShow, placeholder }) => (
+    <div>
+      {masked && !value && (
+        <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 6, fontSize: 12, color: C.teal }}>
+          <span style={{ background: C.tealSoft, border: `1px solid ${C.teal}`, borderRadius: 20, padding: "2px 10px", fontWeight: 600 }}>🔑 Key saved: {masked}</span>
+          <span style={{ color: C.muted }}>— leave blank to keep, or enter new key below</span>
+        </div>
+      )}
+      <div style={{ display: "flex", gap: 8 }}>
+        <input type={show ? "text" : "password"} value={value} onChange={e => onChange(e.target.value)}
+          placeholder={masked ? "Enter new key to replace..." : (placeholder || "Paste key here...")}
+          style={{ flex: 1, padding: "9px 12px", border: `1px solid ${value ? C.teal : C.border}`, borderRadius: 6, fontSize: 13, fontFamily: font.mono, background: C.bg }} />
+        <button onClick={() => setShow(!show)} style={{ padding: "9px 14px", border: `1px solid ${C.border}`, borderRadius: 6, cursor: "pointer", background: C.bg, fontSize: 12 }}>{show ? "🙈" : "👁"}</button>
+      </div>
+    </div>
+  );
+
+  const ProviderCard = ({ id, icon, title, sub, active }) => (
+    <div onClick={() => switchProvider(id)} style={{ flex: 1, border: `2px solid ${active ? C.teal : C.border}`, borderRadius: 10, padding: "16px 20px", cursor: "pointer", background: active ? C.tealSoft : C.card, transition: "all 0.2s" }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 6 }}>
+        <span style={{ fontSize: 24 }}>{icon}</span>
+        <div>
+          <div style={{ fontSize: 14, fontWeight: 700, color: active ? C.teal : C.text }}>{title}</div>
+          <div style={{ fontSize: 11, color: C.muted }}>{sub}</div>
+        </div>
+        {active && <span style={{ marginLeft: "auto", fontSize: 18, color: C.teal }}>✓</span>}
+      </div>
+    </div>
+  );
+
+  return (
+    <div>
+      <Topbar title="Settings" sub="Configure AI provider, models, and preferences" setPage={setPage} />
+      <div style={{ padding: 28, maxWidth: 820 }}>
+
+        {/* Provider selection */}
+        <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 10, marginBottom: 20, overflow: "hidden" }}>
+          <div style={{ padding: "14px 20px", borderBottom: `1px solid ${C.border}`, fontSize: 14, fontFamily: font.head, fontWeight: 700 }}>
+            🤖 AI Provider
+            <span style={{ fontSize: 11, color: C.muted, fontWeight: 400, marginLeft: 10 }}>Click a card to switch — saves instantly</span>
+          </div>
+          <div style={{ padding: 20 }}>
+            <div style={{ display: "flex", gap: 12, marginBottom: 20, flexWrap: "wrap" }}>
+              <ProviderCard id="ollama" icon="🦙" title="Ollama (Local)" sub="Free · Private · Your machine" active={provider === "ollama"} />
+              <ProviderCard id="groq"   icon="⚡" title="Groq Cloud"     sub="Free · No card · Llama 70B fast" active={provider === "groq"} />
+              <ProviderCard id="nvidia" icon="🟢" title="NVIDIA NIM"     sub="Free 1K credits · 80+ models" active={provider === "nvidia"} />
+              <ProviderCard id="gemini" icon="✦" title="Google Gemini"  sub="Free tier · High quality" active={provider === "gemini"} />
+              <ProviderCard id="azure"  icon="☁" title="Azure OpenAI"   sub="GPT-4o · Enterprise" active={provider === "azure"} />
+            </div>
+
+            {provider === "ollama" && (
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14 }}>
+                <div>
+                  <label style={{ fontSize: 11, color: C.muted, textTransform: "uppercase", letterSpacing: "0.08em" }}>Ollama URL</label>
+                  {inp(ollamaUrl, setOllamaUrl, "http://localhost:11434")}
+                </div>
+                <div>
+                  <label style={{ fontSize: 11, color: C.muted, textTransform: "uppercase", letterSpacing: "0.08em" }}>Model Name</label>
+                  {inp(ollamaModel, setOllamaModel, "qwen2.5:0.5b")}
+                  <div style={{ fontSize: 10, color: C.muted, marginTop: 4 }}>Examples: qwen2.5:0.5b · llama3.2:3b · mistral:7b · gemma2:2b</div>
+                </div>
+              </div>
+            )}
+
+            {provider === "groq" && (
+              <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+                <div style={{ background: "#f0fdf4", border: "1px solid #22c55e", borderRadius: 8, padding: "10px 14px", fontSize: 12, color: "#166534" }}>
+                  ⚡ Groq is <strong>free with no credit card</strong>. Get your API key at <strong>console.groq.com</strong> → API Keys. Key starts with <code>gsk_</code>
+                </div>
+                <div>
+                  <label style={{ fontSize: 11, color: C.muted, textTransform: "uppercase", letterSpacing: "0.08em" }}>Groq API Key</label>
+                  <KeyField value={groqKey} onChange={setGroqKey} masked={cfg?.groq_api_key_masked}
+                    show={showGroqKey} setShow={setShowGroqKey} placeholder="gsk_..." />
+                </div>
+                <div>
+                  <label style={{ fontSize: 11, color: C.muted, textTransform: "uppercase", letterSpacing: "0.08em" }}>Model</label>
+                  <select value={groqModel} onChange={e => setGroqModel(e.target.value)}
+                    style={{ display: "block", width: "100%", marginTop: 4, padding: "9px 12px", border: `1px solid ${C.border}`, borderRadius: 6, fontSize: 13, background: C.bg }}>
+                    <optgroup label="⭐ Recommended">
+                      <option value="meta-llama/llama-4-scout-17b-16e-instruct">Llama 4 Scout 17B — 750 t/s · Best speed+quality · $0.11/1M ⭐</option>
+                      <option value="llama-3.3-70b-versatile">Llama 3.3 70B Versatile — 280 t/s · Highest quality · $0.59/1M</option>
+                    </optgroup>
+                    <optgroup label="⚡ Fast &amp; Cheap">
+                      <option value="llama-3.1-8b-instant">Llama 3.1 8B Instant — 560 t/s · Fastest · $0.05/1M</option>
+                      <option value="qwen/qwen3-32b">Qwen3 32B — 400 t/s · Strong reasoning · $0.29/1M</option>
+                    </optgroup>
+                    <optgroup label="🔬 Preview / Experimental">
+                      <option value="openai/gpt-oss-120b">GPT OSS 120B — 500 t/s · Largest · $0.15/1M</option>
+                      <option value="openai/gpt-oss-20b">GPT OSS 20B — 1000 t/s · Very fast · $0.075/1M</option>
+                      <option value="llama3-70b-8192">Llama 3 70B 8192 — Legacy stable</option>
+                    </optgroup>
+                  </select>
+                  <div style={{ fontSize: 10, color: C.muted, marginTop: 4 }}>
+                    <strong>Llama 4 Scout</strong> recommended — 2.7× faster &amp; 5× cheaper than 70B, newer architecture, better instruction following. All models free within Groq developer rate limits.
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {provider === "nvidia" && (
+              <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+                <div style={{ background: "#f0fdf4", border: "1px solid #22c55e", borderRadius: 8, padding: "10px 14px", fontSize: 12, color: "#166534" }}>
+                  🟢 NVIDIA NIM gives <strong>1,000 free credits</strong> (no credit card). Sign up at <strong>build.nvidia.com</strong> → API Keys. Key starts with <code>nvapi-</code>
+                </div>
+                <div>
+                  <label style={{ fontSize: 11, color: C.muted, textTransform: "uppercase", letterSpacing: "0.08em" }}>NVIDIA API Key</label>
+                  <KeyField value={nvidiaKey} onChange={setNvidiaKey} masked={cfg?.nvidia_api_key_masked}
+                    show={showNvidiaKey} setShow={setShowNvidiaKey} placeholder="nvapi-..." />
+                </div>
+                <div>
+                  <label style={{ fontSize: 11, color: C.muted, textTransform: "uppercase", letterSpacing: "0.08em" }}>Model</label>
+                  <select value={nvidiaModel} onChange={e => setNvidiaModel(e.target.value)}
+                    style={{ display: "block", width: "100%", marginTop: 4, padding: "9px 12px", border: `1px solid ${C.border}`, borderRadius: 6, fontSize: 13, background: C.bg }}>
+                    <option value="meta/llama-3.1-70b-instruct">meta/llama-3.1-70b-instruct (Recommended)</option>
+                    <option value="meta/llama-3.3-70b-instruct">meta/llama-3.3-70b-instruct (Latest Llama)</option>
+                    <option value="nvidia/llama-3.1-nemotron-70b-instruct">nvidia/llama-3.1-nemotron-70b-instruct (NVIDIA optimised)</option>
+                    <option value="mistralai/mixtral-8x7b-instruct-v0.1">mistralai/mixtral-8x7b-instruct-v0.1 (Efficient)</option>
+                    <option value="google/gemma-2-27b-it">google/gemma-2-27b-it (Google Gemma)</option>
+                  </select>
+                  <div style={{ fontSize: 10, color: C.muted, marginTop: 4 }}>80+ models available at build.nvidia.com. Llama 70B recommended for JSON extraction.</div>
+                </div>
+              </div>
+            )}
+
+            {provider === "gemini" && (
+              <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+                <div style={{ background: "#fffbea", border: "1px solid #f59e0b", borderRadius: 8, padding: "10px 14px", fontSize: 12, color: "#92400e" }}>
+                  ⚠ Keep your API key private. Get a free key at <strong>aistudio.google.com</strong>
+                </div>
+                <div>
+                  <label style={{ fontSize: 11, color: C.muted, textTransform: "uppercase", letterSpacing: "0.08em" }}>Gemini API Key</label>
+                  <KeyField value={geminiKey} onChange={setGeminiKey} masked={cfg?.gemini_api_key_masked}
+                    show={showGeminiKey} setShow={setShowGeminiKey} placeholder="AIza..." />
+                </div>
+                <div>
+                  <label style={{ fontSize: 11, color: C.muted, textTransform: "uppercase", letterSpacing: "0.08em" }}>Gemini Model</label>
+                  <select value={geminiModel} onChange={e => setGeminiModel(e.target.value)}
+                    style={{ display: "block", width: "100%", marginTop: 4, padding: "9px 12px", border: `1px solid ${C.border}`, borderRadius: 6, fontSize: 13, background: C.bg }}>
+                    <option value="gemini-2.0-flash">gemini-2.0-flash (Fastest · Recommended)</option>
+                    <option value="gemini-1.5-flash">gemini-1.5-flash (Fast · Good quality)</option>
+                    <option value="gemini-1.5-pro">gemini-1.5-pro (Best quality · Slower)</option>
+                    <option value="gemini-2.0-flash-exp">gemini-2.0-flash-exp (Latest experimental)</option>
+                  </select>
+                  <div style={{ fontSize: 10, color: C.muted, marginTop: 4 }}>Flash models recommended for resume work.</div>
+                </div>
+              </div>
+            )}
+
+            {provider === "azure" && (
+              <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+                <div style={{ background: "#eff6ff", border: "1px solid #3b82f6", borderRadius: 8, padding: "10px 14px", fontSize: 12, color: "#1e40af" }}>
+                  ☁ Azure OpenAI — same GPT-4o engine as Microsoft 365 Copilot. Requires an Azure subscription with OpenAI access enabled.
+                  Get endpoint &amp; key from: <strong>portal.azure.com → Azure OpenAI → Keys and Endpoint</strong>
+                </div>
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14 }}>
+                  <div>
+                    <label style={{ fontSize: 11, color: C.muted, textTransform: "uppercase", letterSpacing: "0.08em" }}>Azure Endpoint</label>
+                    {inp(azureEndpoint, setAzureEndpoint, "https://YOUR-RESOURCE.openai.azure.com")}
+                    <div style={{ fontSize: 10, color: C.muted, marginTop: 4 }}>From Azure portal → Azure OpenAI → Keys and Endpoint</div>
+                  </div>
+                  <div>
+                    <label style={{ fontSize: 11, color: C.muted, textTransform: "uppercase", letterSpacing: "0.08em" }}>Deployment Name</label>
+                    {inp(azureDeployment, setAzureDeployment, "gpt-4o")}
+                    <div style={{ fontSize: 10, color: C.muted, marginTop: 4 }}>The model deployment name you created (e.g. gpt-4o, gpt-4-turbo)</div>
+                  </div>
+                </div>
+                <div>
+                  <label style={{ fontSize: 11, color: C.muted, textTransform: "uppercase", letterSpacing: "0.08em" }}>API Key</label>
+                  <KeyField value={azureKey} onChange={setAzureKey} masked={cfg?.azure_api_key_masked}
+                    show={showAzureKey} setShow={setShowAzureKey} placeholder="Paste Azure OpenAI key..." />
+                </div>
+                <div>
+                  <label style={{ fontSize: 11, color: C.muted, textTransform: "uppercase", letterSpacing: "0.08em" }}>API Version</label>
+                  <select value={azureApiVersion} onChange={e => setAzureApiVersion(e.target.value)}
+                    style={{ display: "block", width: "100%", marginTop: 4, padding: "9px 12px", border: `1px solid ${C.border}`, borderRadius: 6, fontSize: 13, background: C.bg }}>
+                    <option value="2024-08-01-preview">2024-08-01-preview (Recommended)</option>
+                    <option value="2024-05-01-preview">2024-05-01-preview</option>
+                    <option value="2023-12-01-preview">2023-12-01-preview</option>
+                  </select>
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* Save fields + Test */}
+        <div style={{ display: "flex", gap: 12, marginBottom: 20 }}>
+          <Btn onClick={handleSave} variant="success" disabled={saving}>{saving ? "Saving..." : "💾 Save Fields"}</Btn>
+          <Btn onClick={handleTest} variant="outline" disabled={testing}>{testing ? "Testing..." : "🔌 Test Connection"}</Btn>
+        </div>
+        <div style={{ fontSize: 11, color: C.muted, marginTop: -12, marginBottom: 16 }}>
+          Switching providers saves instantly (click card). Use "Save Fields" when you change URLs, models, or API keys.
+        </div>
+
+        {testResult && (
+          <div style={{ background: testResult.success ? C.tealSoft : C.accentSoft, border: `1px solid ${testResult.success ? C.teal : C.accent}`, borderRadius: 10, padding: "12px 18px", marginBottom: 20 }}>
+            <span style={{ fontSize: 13, fontWeight: 700, color: testResult.success ? C.teal : C.accent }}>{testResult.success ? "✅" : "❌"} {testResult.provider?.toUpperCase() || "LLM"}</span>
+            <span style={{ fontSize: 12, color: C.text, marginLeft: 10 }}>{testResult.message}</span>
+          </div>
+        )}
+
+        {/* Admin Contact Email */}
+        <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 10, overflow: "hidden", marginBottom: 20 }}>
+          <div style={{ padding: "14px 20px", borderBottom: `1px solid ${C.border}`, fontSize: 14, fontFamily: font.head, fontWeight: 700 }}>📧 Dev / Admin Contact</div>
+          <div style={{ padding: 20 }}>
+            <div style={{ fontSize: 12, color: C.muted, marginBottom: 8 }}>
+              This email is shown to users when a JD domain is not fully supported (e.g. Finance, Legal). They can raise a request to expand coverage.
+            </div>
+            <input
+              type="email" value={adminEmail} onChange={e => setAdminEmail(e.target.value)}
+              placeholder="admin@yourcompany.com"
+              style={{ width: "100%", padding: "8px 12px", borderRadius: 7, border: `1px solid ${C.border}`, background: C.bg, color: C.text, fontSize: 13, boxSizing: "border-box" }}
+            />
+            <div style={{ fontSize: 11, color: C.muted, marginTop: 6 }}>Saved when you click "Save Fields" above.</div>
+          </div>
+        </div>
+
+        {/* Semantic Engine Status */}
+        {semStatus && (
+          <div style={{ background: C.card, border: `1px solid ${semStatus.available ? C.teal + "44" : C.border}`, borderRadius: 10, overflow: "hidden", marginBottom: 20 }}>
+            <div style={{ padding: "14px 20px", display: "flex", alignItems: "center", gap: 12 }}>
+              <span style={{ fontSize: 18 }}>{semStatus.available ? "🧠" : "⚪"}</span>
+              <div style={{ flex: 1 }}>
+                <div style={{ fontSize: 13, fontWeight: 700, color: C.text }}>
+                  Semantic Engine
+                  <span style={{ marginLeft: 10, fontSize: 11, padding: "2px 8px", borderRadius: 10, fontWeight: 600,
+                    background: semStatus.available ? C.tealSoft : C.accentSoft,
+                    color: semStatus.available ? C.teal : C.accent }}>
+                    {semStatus.available ? (semStatus.tier === "st" ? "Neural Embeddings" : "TF-IDF Fallback") : "Offline"}
+                  </span>
+                </div>
+                <div style={{ fontSize: 11, color: C.muted, marginTop: 3 }}>
+                  {semStatus.available
+                    ? semStatus.label
+                    : <>Not installed. <code style={{ background: C.bg, padding: "1px 6px", borderRadius: 4 }}>pip install sentence-transformers</code> for soft gap detection.</>}
+                </div>
+              </div>
+              {!semStatus.available && (
+                <div style={{ fontSize: 10, color: C.gold, background: C.goldSoft, borderRadius: 6, padding: "4px 10px", whiteSpace: "nowrap" }}>
+                  Restart server after install
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* Domain Coverage Dashboard */}
+        <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 10, overflow: "hidden", marginBottom: 20 }}>
+          <div
+            onClick={() => { setCoverageOpen(o => !o); if (!coverageOpen && !coverage) loadCoverage(); }}
+            style={{ padding: "14px 20px", borderBottom: coverageOpen ? `1px solid ${C.border}` : "none", fontSize: 14, fontFamily: font.head, fontWeight: 700, cursor: "pointer", display: "flex", justifyContent: "space-between", alignItems: "center" }}
+          >
+            <span>📊 Domain Coverage Dashboard</span>
+            <span style={{ fontSize: 12, color: C.muted }}>
+              {coverage ? `${coverage.fully_supported} full · ${coverage.analysis_only} analysis-only` : "click to expand"}
+              {"  "}{coverageOpen ? "▲" : "▼"}
+            </span>
+          </div>
+          {coverageOpen && coverage && (
+            <div style={{ padding: 20 }}>
+              <div style={{ fontSize: 12, color: C.muted, marginBottom: 14 }}>
+                <b>Full Support</b> = analysis + gap detection + skill injection into resume.<br/>
+                <b>Analysis Only</b> = gap detection works for any domain; skill injection into resume not yet available.<br/>
+                This table updates automatically when the dev team adds a new domain to the codebase.
+              </div>
+              <div style={{ display: "grid", gridTemplateColumns: "1fr auto auto", gap: "0", fontSize: 12 }}>
+                {/* Header */}
+                <div style={{ padding: "6px 10px", background: C.bg, fontWeight: 700, color: C.muted, borderRadius: "6px 0 0 0", borderBottom: `1px solid ${C.border}` }}>Domain</div>
+                <div style={{ padding: "6px 10px", background: C.bg, fontWeight: 700, color: C.muted, textAlign: "center", borderBottom: `1px solid ${C.border}` }}>Analysis</div>
+                <div style={{ padding: "6px 10px", background: C.bg, fontWeight: 700, color: C.muted, textAlign: "center", borderRadius: "0 6px 0 0", borderBottom: `1px solid ${C.border}` }}>Injection</div>
+                {/* Rows */}
+                {coverage.domains.map((d, i) => (
+                  <React.Fragment key={d.name}>
+                    <div style={{ padding: "8px 10px", borderBottom: i < coverage.domains.length - 1 ? `1px solid ${C.border}` : "none", color: C.text, fontWeight: d.injection_supported ? 500 : 400 }}>
+                      {d.injection_supported ? "🟢" : "🟡"} {d.name}
+                    </div>
+                    <div style={{ padding: "8px 10px", borderBottom: i < coverage.domains.length - 1 ? `1px solid ${C.border}` : "none", textAlign: "center", color: C.teal, fontWeight: 700 }}>✓</div>
+                    <div style={{ padding: "8px 10px", borderBottom: i < coverage.domains.length - 1 ? `1px solid ${C.border}` : "none", textAlign: "center" }}>
+                      {d.injection_supported
+                        ? <span style={{ color: C.teal, fontWeight: 700 }}>✓</span>
+                        : <span style={{ color: C.gold, fontSize: 11 }}>Planned</span>}
+                    </div>
+                  </React.Fragment>
+                ))}
+              </div>
+              <div style={{ marginTop: 14, padding: "10px 14px", background: C.bg, borderRadius: 7, border: `1px solid ${C.border}`, fontSize: 11, color: C.muted }}>
+                Total domains tracked: <b style={{ color: C.text }}>{coverage.total_domains}</b> &nbsp;|&nbsp;
+                Fully supported: <b style={{ color: C.teal }}>{coverage.fully_supported}</b> &nbsp;|&nbsp;
+                Analysis only: <b style={{ color: "#b45309" }}>{coverage.analysis_only}</b> &nbsp;|&nbsp;
+                To add a domain: contact dev team with JD samples.
+              </div>
+            </div>
+          )}
+        </div>
+
+        {/* Login Credentials */}
+        <CredentialsSection />
+
+        {/* System Info */}
+        <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 10, overflow: "hidden" }}>
+          <div style={{ padding: "14px 20px", borderBottom: `1px solid ${C.border}`, fontSize: 14, fontFamily: font.head, fontWeight: 700 }}>🗄 System Info</div>
+          <div style={{ padding: 20, display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14 }}>
+            {[["Backend", "FastAPI · http://127.0.0.1:8000"], ["Database", "SQLite · ./database/cms.db"], ["Upload Folder", "./uploads"], ["Word Generator", "python-docx"]].map(([k, v]) => (
+              <div key={k}>
+                <div style={{ fontSize: 11, color: C.muted, textTransform: "uppercase", letterSpacing: "0.08em" }}>{k}</div>
+                <div style={{ fontSize: 13, color: C.text, marginTop: 3, fontFamily: font.mono }}>{v}</div>
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function PageJDManager({ setPage }) {
+  const [jds, setJds] = useState([]);
+  const [clientName, setClientName] = useState("");
+  const [jobTitle, setJobTitle] = useState("");
+  const [jdText, setJdText] = useState("");
+  const [saving, setSaving] = useState(false);
+
+  const [recruiters, setRecruiters] = useState([]);
+  const [newRecruiter, setNewRecruiter] = useState("");
+  const [savingR, setSavingR] = useState(false);
+  const [editingId, setEditingId] = useState(null);
+  const [editFields, setEditFields] = useState({ client_name: "", job_title: "", jd_text: "" });
+  const [updatingId, setUpdatingId] = useState(null);
+  const [expandedId, setExpandedId] = useState(null);
+  const [jdPage, setJdPage] = useState(0);
+  const JD_PER_PAGE = 5;
+
+  const load = () => api.getJDs().then(setJds);
+  const loadRecruiters = () => api.getRecruiters().then(setRecruiters);
+  useEffect(() => { load(); loadRecruiters(); }, []);
+
+  const handleCreate = async () => {
+    if (!clientName.trim() || !jobTitle.trim() || !jdText.trim()) {
+      alert("Please fill in all fields.");
+      return;
+    }
+    setSaving(true);
+    const res = await api.createJD({ client_name: clientName, job_title: jobTitle, jd_text: jdText });
+    setSaving(false);
+    if (res.id) {
+      setClientName(""); setJobTitle(""); setJdText("");
+      load();
+    } else {
+      alert("Failed to create JD: " + (res.detail || res.error || "Unknown error"));
+    }
+  };
+
+  const startEdit = (jd) => {
+    setEditingId(jd.id);
+    setEditFields({ client_name: jd.client_name, job_title: jd.job_title, jd_text: jd.jd_text });
+  };
+
+  const handleUpdate = async (id) => {
+    if (!editFields.client_name.trim() || !editFields.job_title.trim() || !editFields.jd_text.trim()) {
+      alert("All fields are required."); return;
+    }
+    setUpdatingId(id);
+    const res = await api.updateJD(id, { client_name: editFields.client_name, job_title: editFields.job_title, jd_text: editFields.jd_text });
+    setUpdatingId(null);
+    if (res.id) { setEditingId(null); load(); }
+    else alert("Update failed: " + (res.detail || res.error || "Unknown error"));
+  };
+
+  const handleAddRecruiter = async () => {
+    if (!newRecruiter.trim()) { alert("Enter a recruiter name."); return; }
+    setSavingR(true);
+    const res = await api.createRecruiter(newRecruiter.trim());
+    setSavingR(false);
+    if (res.success) { setNewRecruiter(""); loadRecruiters(); }
+    else alert("Failed: " + (res.detail || res.error || "Unknown error"));
+  };
+
+  const handleDeleteRecruiter = async (id, name) => {
+    if (!confirm(`Remove recruiter "${name}"?`)) return;
+    await api.deleteRecruiter(id);
+    loadRecruiters();
+  };
+
+  const handleDelete = async (id, name) => {
+    if (!confirm(`Deactivate JD: "${name}"?`)) return;
+    await api.deleteJD(id);
+    load();
+  };
+
+  return (
+    <div>
+      <Topbar title="JD Manager" sub="Create and manage Job Descriptions" setPage={setPage} />
+      <div style={{ padding: 28, maxWidth: 900 }}>
+
+        {/* Create new JD */}
+        <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 10, padding: 24, marginBottom: 24 }}>
+          <div style={{ fontSize: 14, fontFamily: font.head, fontWeight: 700, marginBottom: 16 }}>➕ Create New Job Description</div>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14, marginBottom: 14 }}>
+            <div>
+              <label style={{ fontSize: 11, color: C.muted, textTransform: "uppercase", letterSpacing: "0.08em" }}>Company / Client Name</label>
+              <input value={clientName} onChange={e => setClientName(e.target.value)} placeholder="e.g. Infosys, TCS" style={{ display: "block", width: "100%", marginTop: 4, padding: "8px 12px", border: `1px solid ${C.border}`, borderRadius: 6, fontSize: 13, background: C.bg }} />
+            </div>
+            <div>
+              <label style={{ fontSize: 11, color: C.muted, textTransform: "uppercase", letterSpacing: "0.08em" }}>Job Title / Role</label>
+              <input value={jobTitle} onChange={e => setJobTitle(e.target.value)} placeholder="e.g. AI Prompt Engineer" style={{ display: "block", width: "100%", marginTop: 4, padding: "8px 12px", border: `1px solid ${C.border}`, borderRadius: 6, fontSize: 13, background: C.bg }} />
+            </div>
+          </div>
+          <div style={{ marginBottom: 16 }}>
+            <label style={{ fontSize: 11, color: C.muted, textTransform: "uppercase", letterSpacing: "0.08em" }}>Job Description / Requirements</label>
+            <textarea value={jdText} onChange={e => setJdText(e.target.value)} placeholder="Paste the full job description or key requirements here..." rows={6} style={{ display: "block", width: "100%", marginTop: 4, padding: "10px 12px", border: `1px solid ${C.border}`, borderRadius: 6, fontSize: 12, background: C.bg, resize: "vertical", fontFamily: font.mono }} />
+          </div>
+          <Btn onClick={handleCreate} disabled={saving}>{saving ? "Saving..." : "💾 Save JD"}</Btn>
+        </div>
+
+        {/* Existing JDs */}
+        <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 10, overflow: "hidden" }}>
+          <div style={{ padding: "14px 20px", borderBottom: `1px solid ${C.border}`, display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+            <span style={{ fontSize: 14, fontFamily: font.head, fontWeight: 700 }}>Saved Job Descriptions ({jds.length})</span>
+            {jds.length > JD_PER_PAGE && (
+              <span style={{ fontSize: 12, color: C.muted }}>
+                Showing {jdPage * JD_PER_PAGE + 1}–{Math.min((jdPage + 1) * JD_PER_PAGE, jds.length)} of {jds.length}
+              </span>
+            )}
+          </div>
+          {jds.length === 0 && (
+            <div style={{ padding: 32, textAlign: "center", color: C.muted, fontSize: 13 }}>No JDs yet. Create one above to get started.</div>
+          )}
+          {jds.slice(jdPage * JD_PER_PAGE, (jdPage + 1) * JD_PER_PAGE).map((jd, i, arr) => (
+            <div key={jd.id} style={{ padding: "14px 20px", borderBottom: i < arr.length - 1 ? `1px solid ${C.border}` : "none" }}>
+              {editingId === jd.id ? (
+                /* ── Inline edit form ── */
+                <div>
+                  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 10 }}>
+                    <div>
+                      <label style={{ fontSize: 10, color: C.muted, textTransform: "uppercase", letterSpacing: "0.08em" }}>Company / Client Name</label>
+                      <input value={editFields.client_name} onChange={e => setEditFields(f => ({ ...f, client_name: e.target.value }))} style={{ display: "block", width: "100%", marginTop: 3, padding: "7px 10px", border: `1px solid ${C.teal}`, borderRadius: 6, fontSize: 13, background: C.bg }} />
+                    </div>
+                    <div>
+                      <label style={{ fontSize: 10, color: C.muted, textTransform: "uppercase", letterSpacing: "0.08em" }}>Job Title / Role</label>
+                      <input value={editFields.job_title} onChange={e => setEditFields(f => ({ ...f, job_title: e.target.value }))} style={{ display: "block", width: "100%", marginTop: 3, padding: "7px 10px", border: `1px solid ${C.teal}`, borderRadius: 6, fontSize: 13, background: C.bg }} />
+                    </div>
+                  </div>
+                  <div style={{ marginBottom: 10 }}>
+                    <label style={{ fontSize: 10, color: C.muted, textTransform: "uppercase", letterSpacing: "0.08em" }}>Job Description / Requirements</label>
+                    <textarea value={editFields.jd_text} onChange={e => setEditFields(f => ({ ...f, jd_text: e.target.value }))} rows={8} style={{ display: "block", width: "100%", marginTop: 3, padding: "8px 10px", border: `1px solid ${C.teal}`, borderRadius: 6, fontSize: 12, background: C.bg, resize: "vertical", fontFamily: font.mono }} />
+                  </div>
+                  <div style={{ display: "flex", gap: 8 }}>
+                    <Btn onClick={() => handleUpdate(jd.id)} disabled={updatingId === jd.id}>{updatingId === jd.id ? "Saving..." : "💾 Save Changes"}</Btn>
+                    <Btn variant="ghost" onClick={() => setEditingId(null)}>Cancel</Btn>
+                  </div>
+                </div>
+              ) : (
+                /* ── Read / expanded view ── */
+                <div style={{ display: "flex", alignItems: "flex-start", gap: 12 }}>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ display: "flex", alignItems: "center", flexWrap: "wrap", gap: 8, marginBottom: 4 }}>
+                      <span style={{ fontSize: 13, fontWeight: 700, color: C.text }}>{jd.client_name}</span>
+                      <Badge label={jd.job_title} color={C.teal} bg={C.tealSoft} />
+                      <span style={{ fontSize: 11, color: C.muted }}>ID: {jd.id}</span>
+                    </div>
+                    <div style={{ fontSize: 11, color: C.muted, fontFamily: font.mono, whiteSpace: "pre-wrap", maxHeight: expandedId === jd.id ? "none" : 56, overflow: "hidden" }}>
+                      {expandedId === jd.id ? jd.jd_text : jd.jd_text.slice(0, 200) + (jd.jd_text.length > 200 ? "..." : "")}
+                    </div>
+                    {jd.jd_text.length > 200 && (
+                      <span onClick={() => setExpandedId(expandedId === jd.id ? null : jd.id)} style={{ fontSize: 11, color: C.accent, cursor: "pointer", fontWeight: 600 }}>
+                        {expandedId === jd.id ? "▲ Show less" : "▼ Show full description"}
+                      </span>
+                    )}
+                  </div>
+                  <div style={{ display: "flex", gap: 4, flexShrink: 0 }}>
+                    <button title="Edit" onClick={() => startEdit(jd)} style={{ padding: "5px 10px", border: `1px solid ${C.border}`, borderRadius: 6, background: C.bg, cursor: "pointer", fontSize: 14 }}>✏</button>
+                    <button title="Remove" onClick={() => handleDelete(jd.id, jd.client_name)} style={{ padding: "5px 10px", border: `1px solid ${C.border}`, borderRadius: 6, background: C.bg, cursor: "pointer", fontSize: 14 }}>🗑</button>
+                  </div>
+                </div>
+              )}
+            </div>
+          ))}
+          {/* Pagination controls */}
+          {jds.length > JD_PER_PAGE && (
+            <div style={{ padding: "12px 20px", borderTop: `1px solid ${C.border}`, display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+              <button onClick={() => setJdPage(p => Math.max(0, p - 1))} disabled={jdPage === 0} style={{ padding: "5px 14px", borderRadius: 6, border: `1px solid ${C.border}`, background: jdPage === 0 ? C.bg : C.card, color: jdPage === 0 ? C.muted : C.text, cursor: jdPage === 0 ? "default" : "pointer", fontSize: 12 }}>← Prev</button>
+              <div style={{ display: "flex", gap: 6 }}>
+                {Array.from({ length: Math.ceil(jds.length / JD_PER_PAGE) }, (_, p) => (
+                  <button key={p} onClick={() => setJdPage(p)} style={{ width: 30, height: 30, borderRadius: 6, border: `1px solid ${p === jdPage ? C.teal : C.border}`, background: p === jdPage ? C.tealSoft : C.bg, color: p === jdPage ? C.teal : C.muted, cursor: "pointer", fontSize: 12, fontWeight: p === jdPage ? 700 : 400 }}>{p + 1}</button>
+                ))}
+              </div>
+              <button onClick={() => setJdPage(p => Math.min(Math.ceil(jds.length / JD_PER_PAGE) - 1, p + 1))} disabled={jdPage >= Math.ceil(jds.length / JD_PER_PAGE) - 1} style={{ padding: "5px 14px", borderRadius: 6, border: `1px solid ${C.border}`, background: jdPage >= Math.ceil(jds.length / JD_PER_PAGE) - 1 ? C.bg : C.card, color: jdPage >= Math.ceil(jds.length / JD_PER_PAGE) - 1 ? C.muted : C.text, cursor: jdPage >= Math.ceil(jds.length / JD_PER_PAGE) - 1 ? "default" : "pointer", fontSize: 12 }}>Next →</button>
+            </div>
+          )}
+        </div>
+
+        {/* Manage Recruiters */}
+        <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 10, padding: 24, marginTop: 24 }}>
+          <div style={{ fontSize: 14, fontFamily: font.head, fontWeight: 700, marginBottom: 16 }}>👤 Manage Recruiters</div>
+          <div style={{ display: "flex", gap: 10, marginBottom: 16 }}>
+            <input value={newRecruiter} onChange={e => setNewRecruiter(e.target.value)} onKeyDown={e => e.key === "Enter" && handleAddRecruiter()} placeholder="Recruiter name (e.g. Priya Sharma)" style={{ flex: 1, padding: "8px 12px", border: `1px solid ${C.border}`, borderRadius: 6, fontSize: 13, background: C.bg }} />
+            <Btn onClick={handleAddRecruiter} disabled={savingR}>{savingR ? "Adding..." : "+ Add"}</Btn>
+          </div>
+          {recruiters.length === 0 ? (
+            <div style={{ fontSize: 12, color: C.muted, textAlign: "center", padding: "12px 0" }}>No recruiters added yet.</div>
+          ) : (
+            <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
+              {recruiters.map(r => (
+                <div key={r.id} style={{ display: "flex", alignItems: "center", gap: 6, background: C.tealSoft, border: `1px solid ${C.teal}`, borderRadius: 20, padding: "4px 12px" }}>
+                  <span style={{ fontSize: 12, color: C.teal, fontWeight: 600 }}>👤 {r.name}</span>
+                  <span onClick={() => handleDeleteRecruiter(r.id, r.name)} style={{ fontSize: 11, color: C.accent, cursor: "pointer", fontWeight: 700 }}>✕</span>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+
+        <div style={{ marginTop: 16 }}>
+          <Btn onClick={() => setPage("upload")} variant="outline">→ Go to Upload Resume</Btn>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function PageJDAlignedList({ setPage, setSelectedId }) {
+  const [candidates, setCandidates] = useState([]);
+  const [filter, setFilter] = useState("All");
+  const [expanded, setExpanded] = useState(null);
+  const [approving, setApproving] = useState(null);
+  const [alignPage, setAlignPage] = useState(0);
+  const ALIGN_PER_PAGE = 8;
+
+  const load = () => api.getJDAligned().then(setCandidates);
+  useEffect(() => { load(); }, []);
+
+  const filtered = filter === "All" ? candidates
+    : filter === "Approved" ? candidates.filter(c => c.status === "Approved")
+    : candidates.filter(c => c.status !== "Approved");
+  const paginated = filtered.slice(alignPage * ALIGN_PER_PAGE, (alignPage + 1) * ALIGN_PER_PAGE);
+
+  const handleApprove = async (id) => {
+    setApproving(id);
+    const res = await api.approve(id);
+    setApproving(null);
+    if (res.success) { load(); alert("✅ Candidate approved!"); }
+    else alert("Failed: " + (res.error || "Error"));
+  };
+
+  const versionColor = (v) => v === "AI_SIMULATED" ? C.teal : v === "JD_ALIGNED" ? "#7c6af7" : C.gold;
+  const versionBg = (v) => v === "AI_SIMULATED" ? C.tealSoft : v === "JD_ALIGNED" ? "#eeecff" : C.goldSoft;
+  const versionLabel = (v) => v === "AI_SIMULATED" ? "User Edited" : v === "JD_ALIGNED" ? "AI Draft" : v || "Original";
+
+  return (
+    <div>
+      <Topbar title="JD-Aligned Resumes" sub="Candidates with JD-aligned resume drafts" setPage={setPage} />
+      <div style={{ padding: 28 }}>
+
+        <div style={{ display: "flex", gap: 16, flexWrap: "wrap", marginBottom: 20 }}>
+          <StatCard label="Total Aligned" value={candidates.length} color={C.teal} />
+          <StatCard label="Approved" value={candidates.filter(c => c.status === "Approved").length} color="#4ade80" />
+          <StatCard label="Pending Approval" value={candidates.filter(c => c.status !== "Approved").length} color={C.gold} />
+          <StatCard label="User Edited" value={candidates.filter(c => c.resume_version_type === "AI_SIMULATED").length} color={C.accent} />
+        </div>
+
+        <div style={{ display: "flex", gap: 8, marginBottom: 16 }}>
+          {["All", "Approved", "Pending"].map(s => (
+            <button key={s} onClick={() => { setFilter(s); setAlignPage(0); }} style={{ padding: "6px 18px", borderRadius: 20, cursor: "pointer", border: filter === s ? `1px solid ${C.teal}` : `1px solid ${C.border}`, background: filter === s ? C.tealSoft : "transparent", color: filter === s ? C.teal : C.muted, fontSize: 12, fontWeight: 600 }}>{s}</button>
+          ))}
+        </div>
+
+        {filtered.length === 0 && (
+          <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 10, padding: 48, textAlign: "center", color: C.muted }}>
+            <div style={{ fontSize: 32, marginBottom: 12 }}>📊</div>
+            <div style={{ fontSize: 14, marginBottom: 6 }}>No JD-aligned resumes yet</div>
+            <div style={{ fontSize: 12 }}>Go to <span style={{ color: C.accent, cursor: "pointer", fontWeight: 700 }} onClick={() => setPage("jdalign")}>JD Alignment</span> to generate aligned drafts.</div>
+          </div>
+        )}
+        {filtered.length > 0 && <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 10, marginTop: 4 }}><Pagination total={filtered.length} perPage={ALIGN_PER_PAGE} page={alignPage} setPage={setAlignPage} /></div>}
+
+        {paginated.map((c) => (
+          <div key={c.id} style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 10, marginBottom: 14, overflow: "hidden" }}>
+            {/* Summary row */}
+            <div style={{ display: "flex", alignItems: "center", gap: 16, padding: "14px 20px", cursor: "pointer" }} onClick={() => setExpanded(expanded === c.id ? null : c.id)}>
+              <Avatar initials={(c.name || "??").slice(0, 2).toUpperCase()} size={40} />
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
+                  <span style={{ fontSize: 14, fontWeight: 700, color: C.text }}>{c.name || "Unknown"}</span>
+                  <Badge label={versionLabel(c.resume_version_type)} color={versionColor(c.resume_version_type)} bg={versionBg(c.resume_version_type)} />
+                  <Badge label={c.status} color={c.status === "Approved" ? "#4ade80" : C.gold} bg={c.status === "Approved" ? "#f0fff4" : C.goldSoft} />
+                  {c.score > 0 && <Badge label={`${c.score}% match`} color={c.score >= 75 ? C.teal : C.accent} bg={c.score >= 75 ? C.tealSoft : C.accentSoft} />}
+                </div>
+                <div style={{ fontSize: 11, color: C.muted, marginTop: 3 }}>
+                  {c.email && <span>✉ {c.email}  </span>}
+                  {c.mobile && <span>✆ {c.mobile}  </span>}
+                  {c.location && <span>📍 {c.location}  </span>}
+                </div>
+                <div style={{ fontSize: 11, color: C.muted }}>
+                  {c.client_requirement ? `${c.client_requirement.client_name} — ${c.client_requirement.job_title}` : c.company_name || ""}
+                  {c.created_at && <span>  ·  {c.created_at.slice(0, 10)}</span>}
+                </div>
+              </div>
+              <div style={{ display: "flex", gap: 6, flexShrink: 0 }}>
+                {c.status !== "Approved" && (
+                  <Btn onClick={(e) => { e.stopPropagation(); handleApprove(c.id); }} variant="success" small disabled={approving === c.id}>{approving === c.id ? "..." : "✓ Approve"}</Btn>
+                )}
+                <Btn onClick={(e) => { e.stopPropagation(); api.downloadResume(c.id); }} variant="outline" small>⬇ .docx</Btn>
+                <Btn onClick={(e) => { e.stopPropagation(); setSelectedId(c.id); setPage("jdalign"); }} variant="ghost" small>✏ Edit</Btn>
+                <span style={{ fontSize: 18, color: C.muted, paddingLeft: 4 }}>{expanded === c.id ? "▲" : "▼"}</span>
+              </div>
+            </div>
+
+            {/* Expanded detail */}
+            {expanded === c.id && (
+              <div style={{ borderTop: `1px solid ${C.border}`, padding: "16px 20px", background: C.bg }}>
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16, marginBottom: 14 }}>
+                  {c.strengths?.length > 0 && (
+                    <div style={{ background: C.tealSoft, border: `1px solid ${C.teal}44`, borderRadius: 8, padding: 14 }}>
+                      <div style={{ fontSize: 11, fontWeight: 700, color: C.teal, marginBottom: 8 }}>✅ Strengths</div>
+                      {c.strengths.map((s, i) => <div key={i} style={{ fontSize: 11, color: C.text, marginBottom: 3 }}>• {s}</div>)}
+                    </div>
+                  )}
+                  {c.gaps?.length > 0 && (
+                    <div style={{ background: C.accentSoft, border: `1px solid ${C.accent}44`, borderRadius: 8, padding: 14 }}>
+                      <div style={{ fontSize: 11, fontWeight: 700, color: C.accent, marginBottom: 8 }}>⚠ Gaps vs JD</div>
+                      {c.gaps.map((g, i) => <div key={i} style={{ fontSize: 11, color: C.text, marginBottom: 3 }}>• {g}</div>)}
+                    </div>
+                  )}
+                </div>
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
+                  <div>
+                    <div style={{ fontSize: 10, color: C.muted, fontWeight: 700, letterSpacing: "0.08em", marginBottom: 6 }}>ALIGNED RESUME (Saved Draft)</div>
+                    <textarea readOnly value={c.manual_resume_text || c.improved_resume_text || "No draft saved yet"} style={{ width: "100%", height: 320, padding: "10px 12px", border: `1px solid ${C.teal}44`, borderRadius: 8, fontSize: 10, fontFamily: font.mono, background: "#f0fffe", resize: "vertical", lineHeight: 1.6 }} />
+                  </div>
+                  {c.client_requirement?.jd_text && (
+                    <div>
+                      <div style={{ fontSize: 10, color: C.muted, fontWeight: 700, letterSpacing: "0.08em", marginBottom: 6 }}>JD — {c.client_requirement.client_name} · {c.client_requirement.job_title}</div>
+                      <textarea readOnly value={c.client_requirement.jd_text} style={{ width: "100%", height: 320, padding: "10px 12px", border: `1px solid ${C.border}`, borderRadius: 8, fontSize: 10, fontFamily: font.mono, background: C.bg, resize: "vertical", lineHeight: 1.6 }} />
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function App() {
+  const [page, setPage] = useState("dashboard");
+  const [selectedId, setSelectedId] = useState(null);
+  const [ollamaOnline, setOllamaOnline] = useState(false);
+  const [ollamaProvider, setOllamaProvider] = useState("ollama");
+  const [aiRunning, setAiRunning] = useState(false);
+  const [aiTask, setAiTask] = useState("");
+  const [alignState, setAlignState] = useState(null);
+
+  // Auth state
+  const [authReady, setAuthReady] = useState(false);
+  const [token, setToken] = useState(null);
+  const [loggedUser, setLoggedUser] = useState("");
+
+  useEffect(() => {
+    const storedToken = localStorage.getItem("cms_token");
+    const storedUser  = localStorage.getItem("cms_username") || "";
+    if (storedToken) {
+      api.verifyToken(storedToken).then(res => {
+        if (res.valid) {
+          setToken(storedToken);
+          setLoggedUser(res.username || storedUser);
+        } else {
+          localStorage.removeItem("cms_token");
+          localStorage.removeItem("cms_username");
+        }
+        setAuthReady(true);
+      });
+    } else {
+      setAuthReady(true);
+    }
+  }, []);
+
+  const handleLogin = (tok, uname) => {
+    setToken(tok);
+    setLoggedUser(uname);
+  };
+
+  const handleLogout = () => {
+    localStorage.removeItem("cms_token");
+    localStorage.removeItem("cms_username");
+    setToken(null);
+    setLoggedUser("");
+    setPage("dashboard");
+  };
+
+  const refreshStatus = () => api.ollamaStatus().then(s => {
+    setOllamaOnline(s.online);
+    setOllamaProvider(s.provider || "ollama");
+  });
+
+  useEffect(() => {
+    if (!token) return;
+    refreshStatus();
+    const interval = setInterval(refreshStatus, 30000);
+    return () => clearInterval(interval);
+  }, [token]);
+
+  const startAI  = (task) => { setAiRunning(true);  setAiTask(task); };
+  const stopAI   = ()     => { setAiRunning(false); setAiTask("");   };
+
+  if (!authReady) return (
+    <div style={{ minHeight: "100vh", background: C.sidebar, display: "flex", alignItems: "center", justifyContent: "center" }}>
+      <div style={{ color: "rgba(255,255,255,0.5)", fontSize: 14 }}>Loading…</div>
+    </div>
+  );
+
+  if (!token) return <PageLogin onLogin={handleLogin} />;
+
+  const pages = {
+    dashboard: <PageDashboard setPage={setPage} />,
+    jdmanager: <PageJDManager setPage={setPage} />,
+    upload: <PageUpload setPage={setPage} setSelectedId={setSelectedId} startAI={startAI} stopAI={stopAI} />,
+    listing: <PageListing setPage={setPage} setSelectedId={setSelectedId} startAI={startAI} stopAI={stopAI} />,
+    review: <PageReview setPage={setPage} selectedId={selectedId} startAI={startAI} stopAI={stopAI} />,
+    jdalign: <PageJDAlign setPage={setPage} selectedId={selectedId} startAI={startAI} stopAI={stopAI} alignState={alignState} setAlignState={setAlignState} />,
+    jdalignlist: <PageJDAlignedList setPage={setPage} setSelectedId={setSelectedId} />,
+    pipeline: <PagePipeline setPage={setPage} ollamaOnline={ollamaOnline} ollamaProvider={ollamaProvider} />,
+    settings: <PageSettings setPage={setPage} onSave={refreshStatus} />,
+  };
+
+  return (
+    <div style={{ display: "flex", background: C.bg, minHeight: "100vh" }}>
+      <Sidebar active={page} setPage={setPage} ollamaOnline={ollamaOnline} ollamaProvider={ollamaProvider} username={loggedUser} onLogout={handleLogout} />
+      <div style={{ marginLeft: 220, flex: 1, minHeight: "100vh", overflow: "auto", paddingBottom: aiRunning ? 52 : 0 }}>
+        {pages[page]}
+      </div>
+      {aiRunning && (
+        <div style={{ position: "fixed", bottom: 0, left: 220, right: 0, zIndex: 9999, background: "#0f2027", color: "#fff", padding: "10px 24px", display: "flex", alignItems: "center", gap: 14, borderTop: "2px solid #e63946", fontSize: 13 }}>
+          <span style={{ fontSize: 18, animation: "spin 1.2s linear infinite", display: "inline-block" }}>⏳</span>
+          <span><strong>AI is working:</strong> {aiTask}</span>
+          <span style={{ color: "rgba(255,255,255,0.45)", fontSize: 11 }}>— Navigate freely, results will be here when you return</span>
+        </div>
+      )}
+    </div>
+  );
+}
+
+ReactDOM.createRoot(document.getElementById("root")).render(<App />);
+</script>
+</body>
+</html>

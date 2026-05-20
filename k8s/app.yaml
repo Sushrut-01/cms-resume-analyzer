@@ -1,0 +1,67 @@
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: uploads-pvc
+  namespace: cms
+spec:
+  accessModes: [ReadWriteOnce]
+  resources:
+    requests:
+      storage: 10Gi
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: cms-app
+  namespace: cms
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: cms-app
+  template:
+    metadata:
+      labels:
+        app: cms-app
+    spec:
+      containers:
+        - name: cms-app
+          image: cms-resume-optimizer:latest
+          imagePullPolicy: Never        # use locally built image
+          ports:
+            - containerPort: 8000
+          env:
+            - name: DATABASE_URL
+              valueFrom:
+                secretKeyRef:
+                  name: cms-secrets
+                  key: DATABASE_URL
+            - name: UPLOAD_FOLDER
+              value: /app/uploads
+          volumeMounts:
+            - name: uploads-storage
+              mountPath: /app/uploads
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 8000
+            initialDelaySeconds: 10
+            periodSeconds: 10
+      volumes:
+        - name: uploads-storage
+          persistentVolumeClaim:
+            claimName: uploads-pvc
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: cms-app
+  namespace: cms
+spec:
+  type: NodePort
+  selector:
+    app: cms-app
+  ports:
+    - port: 8000
+      targetPort: 8000
+      nodePort: 30800    # HR team accesses via http://SERVER-IP:30800

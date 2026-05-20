@@ -1,0 +1,47 @@
+# ── Secrets & credentials ──────────────────────────────────────────────────
+backend/ai_config.json
+k8s/secret.yaml
+.env
+*.env
+
+# ── Databases ──────────────────────────────────────────────────────────────
+backend/cms_resume.db
+database/cms.db
+*.db
+*.sqlite
+*.sqlite3
+
+# ── Uploaded candidate resumes (PII) ───────────────────────────────────────
+backend/uploads/
+
+# ── Compliance reports & test Word docs ────────────────────────────────────
+CMS_TalentAI_Compliance_Report*.docx
+Vaishali_test*.docx
+*.docx
+
+# ── Python cache ────────────────────────────────────────────────────────────
+__pycache__/
+*.py[cod]
+*.pyo
+.pytest_cache/
+
+# ── Virtual environments ────────────────────────────────────────────────────
+venv/
+.venv/
+env/
+.env/
+
+# ── sentence-transformers model cache ──────────────────────────────────────
+.cache/
+models/
+
+# ── Claude Code project memory (local only) ────────────────────────────────
+.claude/
+
+# ── OS / editor ────────────────────────────────────────────────────────────
+.DS_Store
+Thumbs.db
+desktop.ini
+.idea/
+.vscode/
+*.swp
