@@ -33,7 +33,7 @@ env/
 
 # ── sentence-transformers model cache ──────────────────────────────────────
 .cache/
-models/
+backend/services/model_cache/
 
 # ── Claude Code project memory (local only) ────────────────────────────────
 .claude/
