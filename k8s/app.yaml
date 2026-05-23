@@ -26,7 +26,7 @@ spec:
     spec:
       containers:
         - name: cms-app
-          image: cms-resume-optimizer:latest
+          image: k-recruit:latest
           imagePullPolicy: Never        # use locally built image
           ports:
             - containerPort: 8000

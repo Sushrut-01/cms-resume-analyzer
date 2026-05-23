@@ -1,9 +1,9 @@
 @echo off
-title CMS Resume Optimizer — Deploy
+title K Recruit — Deploy
 
 echo.
 echo  ============================================
-echo   CMS Resume Optimizer — Rancher Desktop
+echo   K Recruit — Rancher Desktop
 echo  ============================================
 echo.
 
@@ -66,7 +66,7 @@ goto END
 :KUBERNETES
 echo.
 echo  Building image for Kubernetes...
-%RUNTIME% build -t cms-resume-optimizer:latest .
+%RUNTIME% build -t k-recruit:latest .
 if %errorlevel% neq 0 ( echo [ERROR] Build failed. & pause & exit /b 1 )
 
 echo  Deploying to Rancher Desktop (k3s)...

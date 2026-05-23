@@ -1,5 +1,5 @@
 @echo off
-title CMS Resume Optimizer — Server
+title K Recruit — Server
 
 :: ─────────────────────────────────────────────
 ::  CONFIGURATION — edit these for your machine
@@ -22,7 +22,7 @@ set PORT=8000
 
 echo.
 echo  ============================================
-echo   CMS Resume Optimizer — Starting Server
+echo   K Recruit — Starting Server
 echo  ============================================
 echo.
 

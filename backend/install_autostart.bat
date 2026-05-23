@@ -1,5 +1,5 @@
 @echo off
-title CMS Resume Optimizer — Install Auto-Start
+title K Recruit — Install Auto-Start
 
 :: This script creates a Windows Task Scheduler job so the server
 :: starts automatically every time the machine boots (even without login).

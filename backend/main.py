@@ -16,7 +16,7 @@ from database import engine, Base, run_migrations
 load_dotenv()
 
 app = FastAPI(
-    title="CMS Resume Optimizer API",
+    title="K Recruit API",
     version="1.0.0",
 )
 

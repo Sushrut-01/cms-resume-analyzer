@@ -1,4 +1,4 @@
-# CMS TalentAI — Resume Optimizer
+# K Recruit
 
 Internal HR tool for Kforce. Parses, scores, and optimizes candidate resumes against job requirements using AI.
 
@@ -11,8 +11,8 @@ Download Python 3.11+ from https://python.org and make sure to check **"Add Pyth
 
 ### 2. Clone the repository
 ```
-git clone https://github.com/YOUR_ORG/cms-resume-optimizer.git
-cd cms-resume-optimizer
+git clone https://github.com/YOUR_ORG/cms-resume-analyzer.git
+cd cms-resume-analyzer
 ```
 
 ### 3. Install dependencies
@@ -51,7 +51,7 @@ Default login:
 ## Project Structure
 
 ```
-cms-resume-optimizer/
+cms-resume-analyzer/
 ├── backend/
 │   ├── main.py                   # FastAPI app entry point
 │   ├── requirements.txt          # Python dependencies
