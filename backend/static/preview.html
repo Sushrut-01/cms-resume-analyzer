@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<title>K Recruit · Premium</title>
+<title>K Recruit</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.2/babel.min.js"></script>
@@ -15,7 +15,7 @@
   @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
   @keyframes fadeIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
   .fade-in { animation: fadeIn 0.22s ease; }
-  input:focus, select:focus, textarea:focus { outline: 2px solid #e63946; outline-offset: -1px; }
+  input:focus, select:focus, textarea:focus { outline: 2px solid #E8431D; outline-offset: -1px; }
 </style>
 </head>
 <body>
@@ -24,17 +24,17 @@
 const { useState, useEffect } = React;
 const API = "http://127.0.0.1:8000";
 
-/* ─── Design tokens ─────────────────────────────────────── */
+/* ─── Design tokens — Kforce brand ──────────────────────── */
 const C = {
-  bg: "#f0f2f5", card: "#ffffff",
-  sidebar: "#0f172a", sidebarHover: "#1e293b", sidebarActive: "#1e3a5f",
-  primary: "#e63946", primarySoft: "#fff1f2", primaryGrad: "linear-gradient(135deg,#e63946,#c1121f)",
+  bg: "#F3F6FB", card: "#ffffff",
+  sidebar: "#0B1D33", sidebarHover: "#152B4A", sidebarActive: "#1A3A62",
+  primary: "#E8431D", primarySoft: "#FFF0EC", primaryGrad: "linear-gradient(135deg,#E8431D,#C93510)",
   teal: "#0d9488", tealSoft: "#f0fdfa", tealGrad: "linear-gradient(135deg,#0d9488,#0f766e)",
   purple: "#7c3aed", purpleSoft: "#f5f3ff", purpleGrad: "linear-gradient(135deg,#7c3aed,#6d28d9)",
   amber: "#d97706", amberSoft: "#fffbeb", amberGrad: "linear-gradient(135deg,#f59e0b,#d97706)",
-  blue: "#2563eb", blueSoft: "#eff6ff", blueGrad: "linear-gradient(135deg,#3b82f6,#2563eb)",
-  text: "#0f172a", textSub: "#475569", muted: "#94a3b8",
-  border: "#e2e8f0", borderSoft: "#f1f5f9",
+  blue: "#1558CB", blueSoft: "#EEF4FF", blueGrad: "linear-gradient(135deg,#1558CB,#1042A8)",
+  text: "#0B1D33", textSub: "#4A5568", muted: "#8A95A3",
+  border: "#DDE4EE", borderSoft: "#EEF2F9",
 };
 const font = { head: "'Georgia',serif", body: "'Inter','Segoe UI',sans-serif", mono: "'JetBrains Mono','Courier New',monospace" };
 
@@ -121,8 +121,8 @@ const Topbar = ({ title, sub, action }) => (
 );
 
 const Label = ({ children }) => <div style={{ fontSize:11, color:C.muted, textTransform:"uppercase", letterSpacing:"0.08em", marginBottom:5 }}>{children}</div>;
-const Input = ({ value, onChange, placeholder, type="text", style={} }) => (
-  <input type={type} value={value} onChange={onChange} placeholder={placeholder}
+const Input = ({ value, onChange, placeholder, type="text", style={}, ...rest }) => (
+  <input type={type} value={value} onChange={onChange} placeholder={placeholder} {...rest}
     style={{ width:"100%", padding:"9px 12px", border:`1px solid ${C.border}`, borderRadius:8, fontSize:13, color:C.text, background:C.bg, ...style }} />
 );
 
@@ -139,10 +139,10 @@ function Sidebar({ active, setPage, onLogout, username, aiOnline, aiProvider }) 
     <div style={{ width:230, background:C.sidebar, display:"flex", flexDirection:"column", height:"100vh", position:"fixed", left:0, top:0, zIndex:100 }}>
       <div style={{ padding:"22px 20px 18px", borderBottom:"1px solid rgba(255,255,255,0.06)" }}>
         <div style={{ display:"flex", alignItems:"center", gap:10 }}>
-          <div style={{ width:32, height:32, borderRadius:8, background:C.primaryGrad, display:"flex", alignItems:"center", justifyContent:"center", fontSize:15, fontWeight:700, color:"#fff" }}>K</div>
+          <div style={{ width:36, height:36, borderRadius:8, background:C.primaryGrad, display:"flex", alignItems:"center", justifyContent:"center", fontSize:16, fontWeight:800, color:"#fff", letterSpacing:"-0.02em" }}>K</div>
           <div>
-            <div style={{ fontSize:15, fontWeight:700, color:"#fff", letterSpacing:"-0.01em" }}><span style={{ color:C.primary }}>K</span> Recruit</div>
-            <div style={{ fontSize:9, color:"rgba(255,255,255,0.28)", letterSpacing:"0.14em", textTransform:"uppercase", marginTop:1 }}>HR Management Portal</div>
+            <div style={{ fontSize:16, fontWeight:800, color:"#fff", letterSpacing:"-0.02em" }}>kforce</div>
+            <div style={{ fontSize:9, color:"rgba(255,255,255,0.35)", letterSpacing:"0.16em", textTransform:"uppercase", marginTop:1 }}>K Recruit</div>
           </div>
         </div>
       </div>
@@ -974,23 +974,26 @@ function App() {
     window.location.href = "/";
   };
 
-  const pages = {
-    dashboard:   <PageDashboard setPage={setPage} />,
-    jdmanager:   <PageJDManager setPage={setPage} />,
-    upload:      <PageUpload setPage={setPage} />,
-    listing:     <PageListing setPage={setPage} setSelectedId={setSelectedId} />,
-    review:      <PageReview setPage={setPage} selectedId={selectedId} />,
-    jdalign:     <PageJDAlign setPage={setPage} selectedId={selectedId} alignState={alignState} setAlignState={setAlignState} />,
-    jdalignlist: <PageJDAlignList setPage={setPage} />,
-    pipeline:    <PagePipeline aiOnline={aiOnline} aiProvider={aiProvider} />,
-    settings:    <PageSettings onSave={() => api.ollamaStatus().then(r=>{ setAiOnline(r.online||false); setAiProvider(r.provider||"groq"); })} />,
+  const onSettingsSave = () => api.ollamaStatus().then(r=>{ setAiOnline(r.online||false); setAiProvider(r.provider||"groq"); });
+  const renderPage = () => {
+    switch(page) {
+      case "jdmanager":   return <PageJDManager setPage={setPage} />;
+      case "upload":      return <PageUpload setPage={setPage} />;
+      case "listing":     return <PageListing setPage={setPage} setSelectedId={setSelectedId} />;
+      case "review":      return <PageReview setPage={setPage} selectedId={selectedId} />;
+      case "jdalign":     return <PageJDAlign setPage={setPage} selectedId={selectedId} alignState={alignState} setAlignState={setAlignState} />;
+      case "jdalignlist": return <PageJDAlignList setPage={setPage} />;
+      case "pipeline":    return <PagePipeline aiOnline={aiOnline} aiProvider={aiProvider} />;
+      case "settings":    return <PageSettings onSave={onSettingsSave} />;
+      default:            return <PageDashboard setPage={setPage} />;
+    }
   };
 
   return (
     <div style={{ display:"flex", background:C.bg, minHeight:"100vh" }}>
       <Sidebar active={page} setPage={setPage} onLogout={handleLogout} username={username} aiOnline={aiOnline} aiProvider={aiProvider} />
       <div style={{ marginLeft:230, flex:1, minHeight:"100vh", overflow:"auto" }}>
-        {pages[page] || pages.dashboard}
+        {renderPage()}
       </div>
     </div>
   );
