@@ -9,7 +9,7 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.2/babel.min.js"></script>
 <style>
   * { margin: 0; padding: 0; box-sizing: border-box; }
-  body { font-family: 'Inter','Segoe UI',sans-serif; background: #f0f2f5; }
+  body { font-family: 'Inter','Segoe UI',sans-serif; background: #FFFFFF; }
   ::-webkit-scrollbar { width: 5px; }
   ::-webkit-scrollbar-thumb { background: #ddd; border-radius: 10px; }
   @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
@@ -26,7 +26,7 @@ const API = "http://127.0.0.1:8000";
 
 /* ─── Design tokens — Kforce Blue Theme ─────────────────── */
 const C = {
-  bg: "#F4F6FA", card: "#ffffff",
+  bg: "#FFFFFF", card: "#ffffff",
   sidebar: "#1C3D6B", sidebarHover: "#264D80", sidebarActive: "#1558CB",
   primary: "#1558CB", primarySoft: "#EEF4FF", primaryGrad: "linear-gradient(135deg,#1558CB,#1042A8)",
   teal: "#0d9488", tealSoft: "#f0fdfa", tealGrad: "linear-gradient(135deg,#0d9488,#0f766e)",
@@ -101,11 +101,11 @@ const Btn = ({ children, onClick, variant="primary", small, disabled, icon }) =>
   return <button onClick={onClick} disabled={disabled} style={{ ...s, padding:small?"6px 14px":"9px 20px", borderRadius:8, cursor:disabled?"not-allowed":"pointer", fontSize:small?11:13, fontWeight:600, display:"inline-flex", alignItems:"center", gap:6, opacity:disabled?0.5:1 }}>{icon&&<span>{icon}</span>}{children}</button>;
 };
 
-const SCard = ({ children, style={} }) => <div style={{ background:C.card, borderRadius:14, border:`1px solid ${C.border}`, boxShadow:"0 1px 3px rgba(0,0,0,0.05)", overflow:"hidden", ...style }}>{children}</div>;
+const SCard = ({ children, style={} }) => <div style={{ background:C.card, borderRadius:14, border:`1px solid ${C.border}`, boxShadow:"0 2px 8px rgba(21,88,203,0.08)", overflow:"hidden", ...style }}>{children}</div>;
 const SHead = ({ children, action }) => <div style={{ padding:"15px 20px", borderBottom:`1px solid ${C.borderSoft}`, display:"flex", alignItems:"center", justifyContent:"space-between" }}><div style={{ fontSize:14, fontWeight:700, color:C.text }}>{children}</div>{action}</div>;
 
 const StatCard = ({ label, value, sub, gradient, icon }) => (
-  <div className="fade-in" style={{ background:C.card, borderRadius:14, padding:"20px 22px", flex:1, minWidth:150, boxShadow:"0 1px 3px rgba(0,0,0,0.06)", border:`1px solid ${C.border}`, position:"relative", overflow:"hidden" }}>
+  <div className="fade-in" style={{ background:C.card, borderRadius:14, padding:"20px 22px", flex:1, minWidth:150, boxShadow:"0 2px 8px rgba(21,88,203,0.08)", border:`1px solid ${C.border}`, position:"relative", overflow:"hidden" }}>
     <div style={{ position:"absolute", right:16, top:16, width:42, height:42, borderRadius:10, background:gradient, display:"flex", alignItems:"center", justifyContent:"center", fontSize:20, opacity:0.9 }}>{icon}</div>
     <div style={{ fontSize:30, fontWeight:800, color:C.text, letterSpacing:"-0.02em" }}>{value}</div>
     <div style={{ fontSize:13, color:C.textSub, fontWeight:500, marginTop:3 }}>{label}</div>
@@ -114,7 +114,7 @@ const StatCard = ({ label, value, sub, gradient, icon }) => (
 );
 
 const Topbar = ({ title, sub, action }) => (
-  <div style={{ height:62, background:C.card, borderBottom:`1px solid ${C.border}`, display:"flex", alignItems:"center", justifyContent:"space-between", padding:"0 28px", position:"sticky", top:0, zIndex:50 }}>
+  <div style={{ height:62, background:C.card, borderBottom:`1px solid ${C.border}`, boxShadow:"0 1px 4px rgba(21,88,203,0.07)", display:"flex", alignItems:"center", justifyContent:"space-between", padding:"0 28px", position:"sticky", top:0, zIndex:50 }}>
     <div><div style={{ fontSize:17, fontWeight:700, color:C.text, letterSpacing:"-0.01em" }}>{title}</div>{sub && <div style={{ fontSize:12, color:C.muted, marginTop:1 }}>{sub}</div>}</div>
     {action}
   </div>
