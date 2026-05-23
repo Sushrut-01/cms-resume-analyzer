@@ -27,7 +27,7 @@ const API = "http://127.0.0.1:8000";
 /* ─── Design tokens — Kforce Blue Theme ─────────────────── */
 const C = {
   bg: "#F4F6FA", card: "#ffffff",
-  sidebar: "#1A2E4A", sidebarHover: "#243D5C", sidebarActive: "#1558CB",
+  sidebar: "#1C3D6B", sidebarHover: "#264D80", sidebarActive: "#1558CB",
   primary: "#1558CB", primarySoft: "#EEF4FF", primaryGrad: "linear-gradient(135deg,#1558CB,#1042A8)",
   teal: "#0d9488", tealSoft: "#f0fdfa", tealGrad: "linear-gradient(135deg,#0d9488,#0f766e)",
   purple: "#7c3aed", purpleSoft: "#f5f3ff", purpleGrad: "linear-gradient(135deg,#7c3aed,#6d28d9)",
@@ -137,7 +137,7 @@ const navGroups = [
 function Sidebar({ active, setPage, onLogout, username, aiOnline, aiProvider }) {
   return (
     <div style={{ width:230, background:C.sidebar, display:"flex", flexDirection:"column", height:"100vh", position:"fixed", left:0, top:0, zIndex:100 }}>
-      <div style={{ padding:"22px 20px 18px", borderBottom:"1px solid rgba(255,255,255,0.06)" }}>
+      <div style={{ padding:"22px 20px 18px", borderBottom:"1px solid rgba(255,255,255,0.12)" }}>
         <div style={{ display:"flex", alignItems:"center", gap:10 }}>
           <div style={{ width:36, height:36, borderRadius:8, background:C.primaryGrad, display:"flex", alignItems:"center", justifyContent:"center", fontSize:16, fontWeight:900, color:"#fff", letterSpacing:"-0.02em" }}>K</div>
           <div>
@@ -149,7 +149,7 @@ function Sidebar({ active, setPage, onLogout, username, aiOnline, aiProvider }) 
       <nav style={{ flex:1, padding:"10px 12px", overflowY:"auto" }}>
         {navGroups.map(group => (
           <div key={group.label} style={{ marginBottom:6 }}>
-            <div style={{ fontSize:9, color:"rgba(255,255,255,0.22)", letterSpacing:"0.12em", padding:"10px 8px 4px", fontWeight:600 }}>{group.label}</div>
+            <div style={{ fontSize:9, color:"rgba(255,255,255,0.45)", letterSpacing:"0.12em", padding:"10px 8px 4px", fontWeight:600 }}>{group.label}</div>
             {group.items.map(item => {
               const isActive = active === item.id;
               return (
@@ -157,8 +157,8 @@ function Sidebar({ active, setPage, onLogout, username, aiOnline, aiProvider }) 
                   style={{ display:"flex", alignItems:"center", gap:10, padding:"9px 12px", borderRadius:8, cursor:"pointer", marginBottom:2, background:isActive ? C.sidebarActive : "transparent", transition:"background 0.15s" }}
                   onMouseEnter={e => { if (!isActive) e.currentTarget.style.background = C.sidebarHover; }}
                   onMouseLeave={e => { if (!isActive) e.currentTarget.style.background = "transparent"; }}>
-                  <span style={{ fontSize:14, opacity:isActive?1:0.4, width:18, textAlign:"center" }}>{item.icon}</span>
-                  <span style={{ fontSize:13, color:isActive?"#fff":"rgba(255,255,255,0.48)", fontWeight:isActive?600:400 }}>{item.label}</span>
+                  <span style={{ fontSize:14, opacity:isActive?1:0.65, width:18, textAlign:"center" }}>{item.icon}</span>
+                  <span style={{ fontSize:13, color:isActive?"#fff":"rgba(255,255,255,0.75)", fontWeight:isActive?600:400 }}>{item.label}</span>
                   {isActive && <div style={{ marginLeft:"auto", width:4, height:4, borderRadius:"50%", background:C.primary }} />}
                 </div>
               );
@@ -166,16 +166,16 @@ function Sidebar({ active, setPage, onLogout, username, aiOnline, aiProvider }) 
           </div>
         ))}
       </nav>
-      <div style={{ padding:"14px 16px", borderTop:"1px solid rgba(255,255,255,0.06)" }}>
+      <div style={{ padding:"14px 16px", borderTop:"1px solid rgba(255,255,255,0.12)" }}>
         <div style={{ display:"flex", alignItems:"center", gap:6, marginBottom:10 }}>
           <div style={{ width:8, height:8, borderRadius:"50%", background:aiOnline?"#22c55e":"#ef4444" }} />
-          <span style={{ fontSize:10, color:"rgba(255,255,255,0.35)" }}>{aiOnline ? `${aiProvider||"AI"} Online` : "AI Offline"}</span>
+          <span style={{ fontSize:10, color:"rgba(255,255,255,0.6)" }}>{aiOnline ? `${aiProvider||"AI"} Online` : "AI Offline"}</span>
         </div>
         <div style={{ display:"flex", alignItems:"center", gap:10, marginBottom:10 }}>
           <Avatar name={username||"Admin"} size={30} />
           <div style={{ flex:1, minWidth:0 }}>
             <div style={{ fontSize:12, color:"#fff", fontWeight:600, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{username||"Admin"}</div>
-            <div style={{ fontSize:10, color:"rgba(255,255,255,0.3)" }}>Logged in</div>
+            <div style={{ fontSize:10, color:"rgba(255,255,255,0.5)" }}>Logged in</div>
           </div>
         </div>
         <button onClick={onLogout} style={{ width:"100%", padding:"7px", background:"rgba(21,88,203,0.15)", border:"1px solid rgba(91,173,255,0.3)", borderRadius:7, color:"#5BADFF", fontSize:11, fontWeight:600, cursor:"pointer" }}>⎋ Sign Out</button>
