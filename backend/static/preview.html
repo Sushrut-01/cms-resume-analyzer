@@ -36,7 +36,7 @@ const C = {
   text: "#1A2E4A", textSub: "#4A5568", muted: "#8A95A3",
   border: "#DDE4EE", borderSoft: "#EEF2F9",
 };
-const font = { head: "'Georgia',serif", body: "'Inter','Segoe UI',sans-serif", mono: "'JetBrains Mono','Courier New',monospace" };
+const font = { head: "'Segoe UI','Inter',sans-serif", body: "'Segoe UI','Inter',sans-serif", mono: "'Courier New',monospace" };
 
 /* ─── API helpers ────────────────────────────────────────── */
 const api = {
@@ -139,10 +139,9 @@ function Sidebar({ active, setPage, onLogout, username, aiOnline, aiProvider }) 
     <div style={{ width:230, background:C.sidebar, display:"flex", flexDirection:"column", height:"100vh", position:"fixed", left:0, top:0, zIndex:100 }}>
       <div style={{ padding:"22px 20px 18px", borderBottom:"1px solid rgba(255,255,255,0.12)" }}>
         <div style={{ display:"flex", alignItems:"center", gap:10 }}>
-          <div style={{ width:36, height:36, borderRadius:8, background:C.primaryGrad, display:"flex", alignItems:"center", justifyContent:"center", fontSize:16, fontWeight:900, color:"#fff", letterSpacing:"-0.02em" }}>K</div>
           <div>
-            <div style={{ fontSize:15, fontWeight:900, color:"#fff", letterSpacing:"-0.01em" }}><span style={{ color:"#5BADFF" }}>K</span>FORCE</div>
-            <div style={{ fontSize:9, color:"rgba(255,255,255,0.35)", letterSpacing:"0.18em", textTransform:"uppercase", marginTop:2 }}>K Recruit</div>
+            <img src="/logo.png" alt="Kforce" style={{ height:26, filter:"brightness(0) invert(1)", display:"block", marginBottom:5 }} />
+            <div style={{ fontSize:9, color:"rgba(255,255,255,0.45)", letterSpacing:"0.2em", textTransform:"uppercase", fontWeight:600 }}>K Recruit</div>
           </div>
         </div>
       </div>

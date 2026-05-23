@@ -9,7 +9,7 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.2/babel.min.js"></script>
 <style>
   * { margin: 0; padding: 0; box-sizing: border-box; }
-  body { font-family: 'Segoe UI', 'Inter', sans-serif; background: #F4F6FA; }
+  body { font-family: 'Segoe UI', 'Inter', sans-serif; background: #FFFFFF; }
   ::-webkit-scrollbar { width: 6px; }
   ::-webkit-scrollbar-thumb { background: #ccc; border-radius: 3px; }
   @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
@@ -28,7 +28,7 @@ const C = {
   gold: "#d97706", goldSoft: "#fffbeb",
   text: "#1A2E4A", muted: "#8A95A3", border: "#DDE4EE",
 };
-const font = { head: "'Georgia', serif", body: "'Trebuchet MS', sans-serif", mono: "'Courier New', monospace" };
+const font = { head: "'Segoe UI','Inter',sans-serif", body: "'Segoe UI','Inter',sans-serif", mono: "'Courier New', monospace" };
 
 const api = {
   getCandidates: async () => {
@@ -229,11 +229,8 @@ function PageLogin({ onLogin }) {
       <div style={{ width: 420 }}>
         {/* Logo block */}
         <div style={{ textAlign: "center", marginBottom: 36 }}>
-          <div style={{ fontSize: 34, fontFamily: font.body, color: "#fff", fontWeight: 900, letterSpacing: "-0.02em" }}>
-            <span style={{ color: "#5BADFF" }}>K</span>FORCE
-          </div>
-          <div style={{ fontSize: 11, color: "rgba(255,255,255,0.45)", marginTop: 6, letterSpacing: "0.22em", textTransform: "uppercase" }}>K Recruit · Internal Tool</div>
-          <div style={{ fontSize: 10, color: "rgba(255,255,255,0.35)", marginTop: 4, letterSpacing: "0.2em", textTransform: "uppercase" }}>K Recruit · Internal Tool</div>
+          <img src="/logo.png" alt="Kforce" style={{ height: 48, marginBottom: 14, filter: "brightness(0) invert(1)" }} />
+          <div style={{ fontSize: 13, color: "rgba(255,255,255,0.55)", letterSpacing: "0.2em", textTransform: "uppercase", fontWeight: 600 }}>K Recruit · Internal Tool</div>
         </div>
 
         {/* Card */}
@@ -314,15 +311,15 @@ const navItems = [
 function Sidebar({ active, setPage, ollamaOnline, ollamaProvider, username, onLogout }) {
   return (
     <div style={{ width: 220, background: C.sidebar, display: "flex", flexDirection: "column", height: "100vh", position: "fixed", left: 0, top: 0, zIndex: 100 }}>
-      <div style={{ padding: "24px 20px 20px", borderBottom: "1px solid rgba(255,255,255,0.07)" }}>
-        <div style={{ fontSize: 15, fontFamily: font.body, color: "#fff", fontWeight: 900, letterSpacing:"-0.01em" }}><span style={{ color:"#5BADFF" }}>K</span>FORCE</div>
-        <div style={{ fontSize: 9, color: "rgba(255,255,255,0.35)", marginTop: 3, letterSpacing: "0.18em", textTransform:"uppercase" }}>K Recruit</div>
+      <div style={{ padding: "20px 20px 16px", borderBottom: "1px solid rgba(255,255,255,0.12)" }}>
+        <img src="/logo.png" alt="Kforce" style={{ height: 28, filter: "brightness(0) invert(1)", display: "block", marginBottom: 6 }} />
+        <div style={{ fontSize: 9, color: "rgba(255,255,255,0.45)", letterSpacing: "0.2em", textTransform: "uppercase", fontWeight: 600 }}>K Recruit</div>
       </div>
       <nav style={{ flex: 1, padding: "12px 0" }}>
         {navItems.map(item => (
-          <div key={item.id} onClick={() => setPage(item.id)} style={{ display: "flex", alignItems: "center", gap: 12, padding: "11px 20px", cursor: "pointer", background: active === item.id ? "rgba(230,57,70,0.18)" : "transparent", borderLeft: active === item.id ? `3px solid ${C.accent}` : "3px solid transparent" }}>
-            <span style={{ fontSize: 14, opacity: active === item.id ? 1 : 0.45 }}>{item.icon}</span>
-            <span style={{ fontSize: 13, color: active === item.id ? "#fff" : "rgba(255,255,255,0.5)", fontWeight: active === item.id ? 600 : 400 }}>{item.label}</span>
+          <div key={item.id} onClick={() => setPage(item.id)} style={{ display: "flex", alignItems: "center", gap: 12, padding: "10px 20px", cursor: "pointer", background: active === item.id ? C.accent : "transparent", borderLeft: active === item.id ? `3px solid #5BADFF` : "3px solid transparent", borderRadius: active === item.id ? "0 8px 8px 0" : 0, margin: "1px 8px 1px 0" }}>
+            <span style={{ fontSize: 14, opacity: active === item.id ? 1 : 0.7 }}>{item.icon}</span>
+            <span style={{ fontSize: 13, color: "#fff", fontWeight: active === item.id ? 700 : 400, opacity: active === item.id ? 1 : 0.75 }}>{item.label}</span>
           </div>
         ))}
       </nav>
