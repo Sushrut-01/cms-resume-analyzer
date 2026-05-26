@@ -3,6 +3,7 @@ from sqlalchemy.orm import Session
 from datetime import datetime, timedelta
 from collections import defaultdict
 import time
+import os
 from database import get_db
 from deps import get_current_user, SECRET_KEY, ALGORITHM
 
@@ -116,4 +117,89 @@ def me(current_user=Depends(get_current_user)):
         "name":  current_user.name,
         "email": current_user.email,
         "role":  current_user.role,
+    }
+
+
+@router.get("/entra-config")
+def entra_config():
+    """Return Entra ID client_id and tenant_id for MSAL.js. Empty strings if not configured."""
+    return {
+        "client_id": os.getenv("ENTRA_CLIENT_ID", ""),
+        "tenant_id": os.getenv("ENTRA_TENANT_ID", ""),
+    }
+
+
+@router.post("/microsoft")
+def microsoft_login(payload: dict, db: Session = Depends(get_db)):
+    """Validate Microsoft Entra ID token, look up user by email, return K Recruit JWT."""
+    from models.user import User
+    import requests as _req
+
+    id_token = payload.get("id_token", "")
+    if not id_token:
+        raise HTTPException(status_code=400, detail="id_token is required")
+
+    tenant_id = os.getenv("ENTRA_TENANT_ID", "")
+    client_id = os.getenv("ENTRA_CLIENT_ID", "")
+    if not tenant_id or not client_id:
+        raise HTTPException(status_code=503, detail="Microsoft login is not configured on this server.")
+
+    # Validate the Microsoft token using Microsoft's public JWKS
+    try:
+        from jose import jwt as _jwt, jwk, JWTError
+        jwks_url = f"https://login.microsoftonline.com/{tenant_id}/discovery/v2.0/keys"
+        jwks_resp = _req.get(jwks_url, timeout=10)
+        jwks_resp.raise_for_status()
+        jwks_data = jwks_resp.json()
+
+        # Decode without verification first to get the key id
+        unverified = _jwt.get_unverified_header(id_token)
+        kid = unverified.get("kid")
+        key = next((k for k in jwks_data["keys"] if k.get("kid") == kid), None)
+        if not key:
+            raise HTTPException(status_code=401, detail="Microsoft token key not found.")
+
+        claims = _jwt.decode(
+            id_token,
+            key,
+            algorithms=["RS256"],
+            audience=client_id,
+            options={"verify_at_hash": False},
+        )
+    except JWTError as e:
+        raise HTTPException(status_code=401, detail=f"Invalid Microsoft token: {str(e)}")
+    except Exception as e:
+        raise HTTPException(status_code=401, detail="Could not validate Microsoft token.")
+
+    # Extract email from token claims
+    email = (
+        claims.get("preferred_username") or
+        claims.get("email") or
+        claims.get("upn") or ""
+    ).strip().lower()
+    name = claims.get("name", email.split("@")[0].title())
+
+    if not email:
+        raise HTTPException(status_code=401, detail="Microsoft token did not contain an email address.")
+
+    # Look up user in K Recruit database by email
+    user = db.query(User).filter(
+        User.email.ilike(email),
+        User.is_active == True
+    ).first()
+
+    if not user:
+        raise HTTPException(
+            status_code=403,
+            detail="Your account is not set up in K Recruit. Contact your admin."
+        )
+
+    token = _make_token(user.id, user.role)
+    return {
+        "success":     True,
+        "token":       token,
+        "username":    user.name or name,
+        "role":        user.role,
+        "user_id":     user.id,
+        "permissions": _get_permissions(db, user.role),
     }

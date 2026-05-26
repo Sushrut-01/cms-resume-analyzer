@@ -1,10 +1,9 @@
 <!--
   ╔══════════════════════════════════════════════════════════════╗
-  ║  DEPRECATED — DO NOT USE                                    ║
-  ║  This was the original prototype built at project start.    ║
-  ║  The active application is: backend/static/preview.html     ║
-  ║  The server serves preview.html at the root route (/).      ║
-  ║  This file is kept for reference only. Do not edit.         ║
+  ║  K RECRUIT — LOGIN GATEWAY  (served at route /)             ║
+  ║  This file is the active login page for K Recruit.          ║
+  ║  After login with "Premium" UI selected, users are          ║
+  ║  redirected to /static/preview.html (the main application). ║
   ╚══════════════════════════════════════════════════════════════╝
 -->
 <!DOCTYPE html>
@@ -16,6 +15,7 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js" integrity="sha384-tMH8h3BGESGckSAVGZ82T9n90ztNXxvdwvdM6UoR56cYcf+0iGXBliJ29D+wZ/x8" crossorigin="anonymous"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js" integrity="sha384-bm7MnzvK++ykSwVJ2tynSE5TRdN+xL418osEVF2DE/L/gfWHj91J2Sphe582B1Bh" crossorigin="anonymous"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.2/babel.min.js" integrity="sha384-aGlMNK3U/x0wl4lEH5jD1PGhJlX9hApuPmIiA5gtiYCOQ1J8ejIdC0btaU/TMoBD" crossorigin="anonymous"></script>
+<script src="https://alcdn.msauth.net/browser/2.38.3/js/msal-browser.min.js"></script>
 <style>
   * { margin: 0; padding: 0; box-sizing: border-box; }
   body { font-family: 'Segoe UI', 'Inter', sans-serif; background: #F5F8FF; }
@@ -351,13 +351,82 @@ const Pagination = ({ total, perPage, page, setPage }) => {
   );
 };
 
+// ── Entra ID / MSAL config ────────────────────────────────────────────────────
+// ENTRA_CLIENT_ID and ENTRA_TENANT_ID are injected by the backend at /auth/entra-config
+// If not configured, the "Sign in with Microsoft" button is hidden.
+let _msalInstance = null;
+async function _getMsal() {
+  if (_msalInstance) return _msalInstance;
+  try {
+    const r = await fetch(`${API}/auth/entra-config`);
+    const cfg = await r.json();
+    if (!cfg.client_id || !cfg.tenant_id) return null;
+    _msalInstance = new msal.PublicClientApplication({
+      auth: {
+        clientId:   cfg.client_id,
+        authority:  `https://login.microsoftonline.com/${cfg.tenant_id}`,
+        redirectUri: window.location.origin,
+      },
+      cache: { cacheLocation: "sessionStorage" },
+    });
+    await _msalInstance.initialize();
+    return _msalInstance;
+  } catch { return null; }
+}
+
+async function handleMicrosoftLogin(uiPref, onLogin, setError, setMsLoading) {
+  setMsLoading(true); setError("");
+  try {
+    const msal = await _getMsal();
+    if (!msal) { setError("Microsoft login is not configured. Contact admin."); setMsLoading(false); return; }
+    const result = await msal.loginPopup({ scopes: ["openid","profile","email"] });
+    const idToken = result.idToken;
+    const r = await fetch(`${API}/auth/microsoft`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ id_token: idToken }),
+    });
+    const res = await r.json();
+    if (res.success && res.token) {
+      localStorage.setItem("cms_token",       res.token);
+      localStorage.setItem("cms_username",    res.username || "");
+      localStorage.setItem("cms_role",        res.role || "recruiter");
+      if (res.user_id)     localStorage.setItem("cms_user_id",     String(res.user_id));
+      if (res.permissions) localStorage.setItem("cms_permissions", JSON.stringify(res.permissions));
+      localStorage.setItem("cms_ui_pref", uiPref);
+      if (uiPref === "premium") {
+        window.location.href = "/static/preview.html";
+      } else {
+        onLogin(res.token, res.username || "");
+      }
+    } else {
+      setError(res.detail || res.error || "Microsoft login failed. Your account may not be set up in K Recruit.");
+    }
+  } catch (e) {
+    if (e.errorCode !== "user_cancelled") {
+      setError("Microsoft sign-in error. Please try again or use email/password.");
+    }
+  }
+  setMsLoading(false);
+}
+// ─────────────────────────────────────────────────────────────────────────────
+
 function PageLogin({ onLogin }) {
   const [username, setUsername] = React.useState("");
   const [password, setPassword] = React.useState("");
   const [showPwd, setShowPwd] = React.useState(false);
   const [loading, setLoading] = React.useState(false);
+  const [msLoading, setMsLoading] = React.useState(false);
   const [error, setError] = React.useState("");
   const [uiPref, setUiPref] = React.useState(localStorage.getItem("cms_ui_pref") || "classic");
+  const [entraEnabled, setEntraEnabled] = React.useState(false);
+
+  React.useEffect(() => {
+    fetch(`${API}/auth/entra-config`)
+      .then(r => r.json())
+      .then(cfg => setEntraEnabled(!!(cfg.client_id && cfg.tenant_id)))
+      .catch(() => {});
+  }, []);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -484,6 +553,37 @@ function PageLogin({ onLogin }) {
               {loading ? "Signing in…" : "Sign In →"}
             </button>
           </form>
+
+          {entraEnabled && (
+            <div>
+              <div style={{ display:"flex", alignItems:"center", gap:12, margin:"22px 0" }}>
+                <div style={{ flex:1, height:1, background:C.border }} />
+                <span style={{ fontSize:12, color:C.muted, fontWeight:500 }}>or</span>
+                <div style={{ flex:1, height:1, background:C.border }} />
+              </div>
+              <button onClick={() => handleMicrosoftLogin(uiPref, onLogin, setError, setMsLoading)}
+                disabled={msLoading}
+                style={{ width:"100%", padding:"12px 16px", background:"#fff", border:`1.5px solid ${C.border}`, borderRadius:9,
+                  display:"flex", alignItems:"center", justifyContent:"center", gap:12,
+                  fontSize:14, fontWeight:600, color:C.text, fontFamily:font.body,
+                  cursor:msLoading?"not-allowed":"pointer", boxShadow:"0 1px 4px rgba(0,0,0,0.08)" }}>
+                {msLoading ? "Signing in…" : (
+                  <>
+                    <svg width="20" height="20" viewBox="0 0 21 21" fill="none">
+                      <rect x="1" y="1" width="9" height="9" fill="#F25022"/>
+                      <rect x="11" y="1" width="9" height="9" fill="#7FBA00"/>
+                      <rect x="1" y="11" width="9" height="9" fill="#00A4EF"/>
+                      <rect x="11" y="11" width="9" height="9" fill="#FFB900"/>
+                    </svg>
+                    Sign in with Microsoft
+                  </>
+                )}
+              </button>
+              <div style={{ fontSize:11, color:C.muted, textAlign:"center", marginTop:8 }}>
+                Use your Kforce Microsoft account
+              </div>
+            </div>
+          )}
         </div>
       </div>
     </div>
