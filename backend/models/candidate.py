@@ -89,6 +89,14 @@ class Candidate(Base):
     status   = Column(String(50), default="Pending Review")
     pdf_path = Column(String(255))  # Path to uploaded PDF on disk
 
+    # ── Data Isolation ────────────────────────────────────────────────────────
+    # Which user uploaded this candidate — used to filter the candidates list
+    # so each recruiter only sees their own uploads.
+    # Admins and super_admins bypass this filter and see all candidates.
+    # nullable=True: pre-existing records (before this column was added) are NULL,
+    # which admins can still see — no historical data is lost.
+    uploaded_by = Column(Integer, ForeignKey("users.id"), nullable=True, index=True)
+
     # ── Timestamps ────────────────────────────────────────────────────────────
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)

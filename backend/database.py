@@ -90,6 +90,9 @@ def run_migrations():
         "ALTER TABLE candidates ADD COLUMN role                  TEXT DEFAULT ''",
         "ALTER TABLE candidates ADD COLUMN recruiter_name        TEXT DEFAULT ''",
         "ALTER TABLE client_requirements ADD COLUMN recruiter_name TEXT DEFAULT ''",
+        # Data isolation: each candidate is linked to the user who uploaded them
+        # recruiter role sees only their own; admins see all
+        "ALTER TABLE candidates ADD COLUMN uploaded_by INTEGER DEFAULT NULL",
     ]
     with engine.begin() as conn:
         for sql in new_columns:

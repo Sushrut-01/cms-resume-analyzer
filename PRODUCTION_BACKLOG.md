@@ -14,7 +14,7 @@ Owner: Sushrut Nistane
 
 ## P0 — Go-Live Blockers (must complete before production)
 
-### 1. 🟡 Data Isolation — uploaded_by on candidates table
+### 1. 🟢 Data Isolation — uploaded_by on candidates table
 **What:** Add `uploaded_by` foreign key (user_id) to the candidates table so each recruiter only sees their own uploaded candidates. Currently all recruiters see all candidates.
 **Why:** Without this, Recruiter A can see Recruiter B's candidates — unacceptable for 100-user rollout.
 **Work:**
@@ -183,7 +183,7 @@ Paste output into production `.env` as `JWT_SECRET=`. All active sessions will b
 
 | # | Item | Priority | Status | Owner |
 |---|---|---|---|---|
-| 1 | Data isolation (uploaded_by) | P0 | 🟡 Pending | Dev |
+| 1 | Data isolation (uploaded_by) | P0 | 🟢 Done | Dev |
 | 2 | PostgreSQL migration | P0 | 🔴 Blocked (IT) | IT + Dev |
 | 3 | Entra ID SSO login | P0 | 🔴 Blocked (IT) | IT + Dev |
 | 4 | Admin email update | P0 | 🟡 Pending | Sushrut |

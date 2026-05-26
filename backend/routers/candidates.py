@@ -64,17 +64,18 @@ UPLOAD_FOLDER = os.getenv("UPLOAD_FOLDER", "./uploads")
 
 
 # -----------------------------------------------------------------------------
-# GET /candidates/ — List All Candidates
-# Returns all candidates ordered by most recently uploaded first.
-# Includes all analysis data (score, gaps, strengths, etc.) in the response.
+# GET /candidates/ — List Candidates
+# Recruiters: only see candidates they uploaded (uploaded_by = their user ID).
+# Admins and super_admins: see all candidates regardless of who uploaded them.
+# This is the core data isolation guard — prevents recruiter A seeing recruiter B's work.
 # -----------------------------------------------------------------------------
 @router.get("/")
-def get_all_candidates(db: Session = Depends(get_db), _=Depends(get_current_user)):
-    candidates = (
-        db.query(Candidate)
-        .order_by(Candidate.created_at.desc())
-        .all()
-    )
+def get_all_candidates(db: Session = Depends(get_db), current_user=Depends(get_current_user)):
+    q = db.query(Candidate)
+    if current_user.role == "recruiter":
+        # Filter: only candidates this recruiter uploaded
+        q = q.filter(Candidate.uploaded_by == current_user.id)
+    candidates = q.order_by(Candidate.created_at.desc()).all()
     return {"success": True, "data": [to_dict(c) for c in candidates]}
 
 
@@ -112,7 +113,7 @@ async def upload_resume(
     client_requirement_id: int = Form(...),
     recruiter_name: str = Form(""),
     db: Session = Depends(get_db),
-    _=Depends(get_current_user),
+    current_user=Depends(get_current_user),
 ):
     os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 
@@ -149,6 +150,7 @@ async def upload_resume(
         )
 
     # Create the candidate record — status starts as "Uploaded"
+    # uploaded_by is set to the current user's ID for data isolation
     candidate = Candidate(
         name=extracted.get("name"),
         email=extracted.get("email"),
@@ -158,6 +160,7 @@ async def upload_resume(
         company_name=client_req.client_name,
         role=client_req.job_title,
         recruiter_name=recruiter_name or "",
+        uploaded_by=current_user.id,
         client_requirement=client_req,
         original_resume_text=extracted.get("full_text", ""),
         improved_resume_text="",
@@ -640,6 +643,7 @@ def to_dict(c: Candidate):
         "candidate_function":  getattr(c, "candidate_function", "") or "",
         "jd_function":         getattr(c, "jd_function", "") or "",
         "role_compatibility":  getattr(c, "role_compatibility", "") or "",
+        "uploaded_by":         getattr(c, "uploaded_by", None),
         "created_at": c.created_at.isoformat() if c.created_at else None,
         "client_requirement": {
             "id": c.client_requirement.id,
