@@ -762,11 +762,26 @@ _JUNK_PHRASES = [
 ]
 
 def _strip_contact_pii(text: str) -> str:
-    """Remove email, phone, and LinkedIn URL lines from text before sending to AI."""
+    """Remove name, email, phone, address, and LinkedIn URL before sending to AI."""
+    # Email
     text = re.sub(r'\b[A-Za-z0-9._%+\-]+@[A-Za-z0-9.\-]+\.[A-Za-z]{2,}\b', '[email]', text)
+    # Phone (international and local formats)
     text = re.sub(r'(\+?\d[\d\s\-().]{7,}\d)', '[phone]', text)
+    # LinkedIn
     text = re.sub(r'(https?://)?(www\.)?linkedin\.com/in/[^\s,|>]+', '[linkedin]', text, flags=re.I)
-    return text
+    # GitHub / portfolio URLs with username path
+    text = re.sub(r'(https?://)?(www\.)?github\.com/[^\s,|>]+', '[github]', text, flags=re.I)
+    # Street address patterns (123 Any Street, City, State ZIP)
+    text = re.sub(r'\b\d{1,5}\s+[A-Za-z0-9\s,.#]{5,40}(?:street|st|avenue|ave|road|rd|blvd|lane|ln|drive|dr|court|ct|way)\b',
+                  '[address]', text, flags=re.I)
+    # Candidate name — first line of resume is almost always the name (capitalised, no digits)
+    lines = text.split('\n')
+    for i, line in enumerate(lines[:5]):
+        stripped = line.strip()
+        if stripped and re.match(r'^[A-Z][a-zA-Z]+(?:\s+[A-Z][a-zA-Z]+){1,3}$', stripped):
+            lines[i] = '[name]'
+            break
+    return '\n'.join(lines)
 
 
 def clean_resume_text(text: str) -> str:
@@ -1088,6 +1103,7 @@ def analyze_resume(resume_text: str, jd_text: str):
     NICE TO HAVE = keyword mentioned once in JD.
     """
     try:
+        resume_text = _strip_contact_pii(resume_text)
         if not jd_text or len(jd_text.strip()) < 30:
             return {"success": False, "error": "JD text is too short or empty — please add more detail to the job description"}
 
@@ -1460,6 +1476,7 @@ def _parse_json_response(text: str) -> dict | None:
 def _extract_resume_structured(resume_text: str) -> dict | None:
     """Use LLM to extract resume into structured JSON — handles any resume format.
     Returns None on failure. Only called when a capable provider is active."""
+    resume_text = _strip_contact_pii(resume_text)
     cleaned = clean_resume_text(resume_text)
     snip = _truncate(cleaned, _provider_extract_limit())
     prompt = (
