@@ -1,18 +1,174 @@
+<!--
+  ╔══════════════════════════════════════════════════════════════╗
+  ║  DEPRECATED — DO NOT USE                                    ║
+  ║  This was the original prototype built at project start.    ║
+  ║  The active application is: backend/static/preview.html     ║
+  ║  The server serves preview.html at the root route (/).      ║
+  ║  This file is kept for reference only. Do not edit.         ║
+  ╚══════════════════════════════════════════════════════════════╝
+-->
 <!DOCTYPE html>
 <html lang="en">
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 <title>K Recruit</title>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.2/babel.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js" integrity="sha384-tMH8h3BGESGckSAVGZ82T9n90ztNXxvdwvdM6UoR56cYcf+0iGXBliJ29D+wZ/x8" crossorigin="anonymous"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js" integrity="sha384-bm7MnzvK++ykSwVJ2tynSE5TRdN+xL418osEVF2DE/L/gfWHj91J2Sphe582B1Bh" crossorigin="anonymous"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.2/babel.min.js" integrity="sha384-aGlMNK3U/x0wl4lEH5jD1PGhJlX9hApuPmIiA5gtiYCOQ1J8ejIdC0btaU/TMoBD" crossorigin="anonymous"></script>
 <style>
   * { margin: 0; padding: 0; box-sizing: border-box; }
-  body { font-family: 'Segoe UI', 'Inter', sans-serif; background: #FFFFFF; }
+  body { font-family: 'Segoe UI', 'Inter', sans-serif; background: #F5F8FF; }
+  input, select, textarea { font-family: 'Segoe UI', 'Inter', sans-serif; }
   ::-webkit-scrollbar { width: 6px; }
   ::-webkit-scrollbar-thumb { background: #ccc; border-radius: 3px; }
+  input, select, textarea { outline: none !important; }
+  input:focus, select:focus, textarea:focus { border-color: #1558CB !important; box-shadow: 0 0 0 3px rgba(21,88,203,0.12) !important; }
+  input:valid, input:invalid { box-shadow: none !important; outline: none !important; }
+  input:-webkit-autofill { box-shadow: 0 0 0 50px #fff inset !important; }
   @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+
+  /* ── AI Panel ──────────────────────────────────── */
+  .ai-panel-wrap {
+    position: fixed; top: 0; right: 0; bottom: 0; z-index: 200;
+    display: flex; pointer-events: none;
+  }
+  .ai-panel-wrap.open { pointer-events: all; }
+  .ai-resize-handle {
+    width: 5px; cursor: col-resize; background: transparent;
+    flex-shrink: 0; transition: background 0.15s;
+  }
+  .ai-resize-handle:hover, .ai-resize-handle.dragging {
+    background: rgba(21,88,203,0.22);
+  }
+  .ai-panel-box {
+    height: 100%; background: #fff; border-left: 1px solid #DDE4EE;
+    display: flex; flex-direction: column; overflow: hidden;
+    box-shadow: -4px 0 24px rgba(21,88,203,0.1);
+    transform: translateX(100%);
+    transition: transform 0.28s cubic-bezier(0.4,0,0.2,1);
+  }
+  .ai-panel-wrap.open .ai-panel-box { transform: translateX(0); }
+  .ai-panel-head {
+    height: 64px; background: linear-gradient(135deg,#1C3D6B 0%,#1558CB 100%);
+    display: flex; align-items: center; gap: 10px; padding: 0 16px;
+    flex-shrink: 0; border-bottom: 1px solid rgba(255,255,255,0.1);
+  }
+  .ai-tabs {
+    display: flex; flex-shrink: 0; background: #F5F8FF;
+    border-bottom: 1px solid #DDE4EE;
+  }
+  .ai-tab {
+    flex: 1; padding: 9px 0; text-align: center; font-size: 11px;
+    font-weight: 600; color: #8A95A3; cursor: pointer;
+    border-bottom: 2px solid transparent; transition: all 0.15s;
+    position: relative;
+  }
+  .ai-tab.active { color: #1558CB; border-bottom-color: #1558CB; background: #fff; }
+  .ai-tab .tab-live {
+    width: 5px; height: 5px; border-radius: 50%; background: #00B4CC;
+    position: absolute; top: 7px; right: calc(50% - 24px); display: none;
+  }
+  .ai-tab:first-child .tab-live { display: block; }
+  .ai-body { flex: 1; overflow-y: auto; display: flex; flex-direction: column; min-height: 0; }
+
+  /* context mode */
+  .ctx-mode { padding: 12px; display: flex; flex-direction: column; gap: 9px; }
+  .ctx-greet {
+    background: linear-gradient(135deg,#EEF4FF,#F0FDFA);
+    border: 1px solid #C7D9F8; border-radius: 10px; padding: 12px 14px;
+  }
+  .ctx-section { font-size: 10px; font-weight: 700; color: #8A95A3; text-transform: uppercase; letter-spacing: 0.1em; padding: 2px 0 0; }
+  .insight-card {
+    border-radius: 9px; border: 1px solid; padding: 10px 12px;
+    cursor: pointer; transition: all 0.15s;
+  }
+  .insight-card:hover { transform: translateX(-2px); box-shadow: 3px 0 12px rgba(21,88,203,0.09); }
+  .ic-action { font-size: 11px; font-weight: 600; margin-top: 6px; display: inline-flex; align-items: center; gap: 3px; }
+
+  /* chat mode */
+  .chat-mode { flex: 1; display: flex; flex-direction: column; min-height: 0; }
+  .chat-msgs { flex: 1; overflow-y: auto; padding: 12px; display: flex; flex-direction: column; gap: 9px; }
+  .cmsg { display: flex; gap: 7px; align-items: flex-start; }
+  .cmsg.user { flex-direction: row-reverse; }
+  .cmsg-av { width: 26px; height: 26px; border-radius: 50%; flex-shrink: 0; display: flex; align-items: center; justify-content: center; font-size: 12px; margin-top: 2px; background: linear-gradient(135deg,#1558CB,#1042A8); }
+  .cmsg-uav { width: 26px; height: 26px; border-radius: 50%; flex-shrink: 0; display: flex; align-items: center; justify-content: center; font-size: 10px; font-weight: 700; color: #1A2E4A; margin-top: 2px; background: #DDE4EE; }
+  .cmsg-b { max-width: 82%; padding: 8px 11px; border-radius: 10px; font-size: 12.5px; line-height: 1.55; color: #1A2E4A; background: #F5F8FF; border: 1px solid #DDE4EE; white-space: pre-wrap; word-break: break-word; }
+  .cmsg.user .cmsg-b { background: linear-gradient(135deg,#1558CB,#1042A8); color: #fff; border: none; }
+  .chat-chips { padding: 0 12px 8px; display: flex; flex-wrap: wrap; gap: 5px; flex-shrink: 0; }
+  .chat-chip { padding: 4px 10px; border-radius: 20px; font-size: 11px; font-weight: 600; border: 1.5px solid #C7D9F8; color: #1558CB; background: #EEF4FF; cursor: pointer; transition: all 0.14s; }
+  .chat-chip:hover { background: #1558CB; color: #fff; border-color: #1558CB; }
+  .chat-input-row { padding: 8px 12px; border-top: 1px solid #DDE4EE; display: flex; gap: 7px; flex-shrink: 0; }
+  .chat-inp { flex: 1; padding: 8px 11px; border: 1.5px solid #DDE4EE; border-radius: 8px; font-size: 13px; font-family: inherit; color: #1A2E4A; outline: none; resize: none; }
+  .chat-inp:focus { border-color: #1558CB; }
+  .chat-send { width: 34px; height: 34px; border-radius: 7px; background: linear-gradient(135deg,#1558CB,#1042A8); border: none; cursor: pointer; color: #fff; font-size: 14px; display: flex; align-items: center; justify-content: center; flex-shrink: 0; box-shadow: 0 2px 8px rgba(21,88,203,0.28); }
+  .chat-send:disabled { opacity: 0.5; cursor: not-allowed; }
+
+  /* actions mode */
+  .act-mode { padding: 12px; display: flex; flex-direction: column; gap: 7px; overflow-y: auto; }
+  .act-grp { font-size: 10px; font-weight: 700; color: #8A95A3; text-transform: uppercase; letter-spacing: 0.1em; padding: 4px 2px 2px; }
+  .act-btn-item {
+    display: flex; align-items: center; gap: 10px; padding: 11px 13px;
+    background: #fff; border: 1.5px solid #DDE4EE; border-radius: 9px;
+    cursor: pointer; transition: all 0.15s; text-align: left; width: 100%;
+  }
+  .act-btn-item:hover { border-color: #1558CB; background: #EEF4FF; transform: translateX(2px); }
+  .act-arrow { font-size: 13px; color: #1558CB; margin-left: auto; opacity: 0; transform: translateX(-4px); transition: all 0.14s; }
+  .act-btn-item:hover .act-arrow { opacity: 1; transform: translateX(0); }
+  .act-badge { margin-left: auto; background: #EEF4FF; color: #1558CB; font-size: 10px; font-weight: 700; padding: 2px 8px; border-radius: 12px; }
+
+  /* AI trigger button */
+  .ai-trigger-btn {
+    display: flex; align-items: center; gap: 8px; padding: 7px 15px;
+    border-radius: 9px; cursor: pointer; font-size: 13px; font-weight: 600;
+    border: 1.5px solid #C7D9F8; background: #fff; color: #1558CB;
+    transition: all 0.18s; box-shadow: 0 1px 4px rgba(21,88,203,0.1);
+  }
+  .ai-trigger-btn:hover { background: #EEF4FF; border-color: #1558CB; }
+  .ai-trigger-btn.active { background: linear-gradient(135deg,#1558CB,#1042A8); color: #fff; border-color: #1558CB; box-shadow: 0 3px 12px rgba(21,88,203,0.3); }
+  .ai-pulse { width: 8px; height: 8px; border-radius: 50%; background: #00B4CC; position: relative; flex-shrink: 0; }
+  @keyframes pulseRing { 0%{transform:scale(1);opacity:0.55} 100%{transform:scale(2.4);opacity:0} }
+  .ai-pulse::after { content: ''; position: absolute; inset: -3px; border-radius: 50%; border: 2px solid #00B4CC; opacity: 0.55; animation: pulseRing 1.9s ease-out infinite; }
+  .ai-trigger-btn.active .ai-pulse { background: rgba(255,255,255,0.9); }
+  .ai-trigger-btn.active .ai-pulse::after { border-color: rgba(255,255,255,0.7); }
+
+  /* typing dots */
+  .typing-dots { display: flex; gap: 3px; align-items: center; padding: 2px 0; }
+  .typing-dots span { width: 5px; height: 5px; border-radius: 50%; background: #8A95A3; animation: tdot 1.1s infinite ease-in-out; }
+  .typing-dots span:nth-child(2) { animation-delay: 0.2s; }
+  .typing-dots span:nth-child(3) { animation-delay: 0.4s; }
+  @keyframes tdot { 0%,60%,100%{transform:translateY(0)} 30%{transform:translateY(-4px)} }
+
+  /* Spotlight ────────────────────────────────────── */
+  .spotlight-overlay {
+    position: fixed; inset: 0; z-index: 1000;
+    background: rgba(10,20,40,0.48); backdrop-filter: blur(3px);
+    display: flex; align-items: flex-start; justify-content: center;
+    padding-top: 15vh; opacity: 0; pointer-events: none; transition: opacity 0.18s;
+  }
+  .spotlight-overlay.open { opacity: 1; pointer-events: all; }
+  .spotlight-box {
+    width: 560px; background: #fff; border-radius: 14px;
+    box-shadow: 0 20px 60px rgba(0,0,0,0.22), 0 0 0 1px rgba(21,88,203,0.12);
+    overflow: hidden; transform: scale(0.95) translateY(-10px);
+    transition: transform 0.18s ease;
+  }
+  .spotlight-overlay.open .spotlight-box { transform: scale(1) translateY(0); }
+  .sl-head { display: flex; align-items: center; gap: 12px; padding: 14px 18px; border-bottom: 1px solid #EEF2F9; }
+  .sl-input { flex: 1; font-size: 15px; font-family: inherit; color: #1A2E4A; border: none; outline: none; background: transparent; }
+  .sl-results { padding: 6px; max-height: 340px; overflow-y: auto; }
+  .sl-group { font-size: 10px; font-weight: 700; color: #8A95A3; text-transform: uppercase; letter-spacing: 0.09em; padding: 6px 10px 3px; }
+  .sl-item { display: flex; align-items: center; gap: 10px; padding: 8px 10px; border-radius: 8px; cursor: pointer; transition: background 0.12s; }
+  .sl-item:hover, .sl-item.sl-focused { background: #EEF4FF; }
+  .sl-icon { width: 30px; height: 30px; border-radius: 7px; display: flex; align-items: center; justify-content: center; font-size: 14px; flex-shrink: 0; background: #F5F8FF; border: 1px solid #DDE4EE; }
+  .sl-title { font-size: 13px; font-weight: 600; color: #1A2E4A; }
+  .sl-sub { font-size: 11px; color: #8A95A3; margin-top: 1px; }
+  .sl-right { margin-left: auto; display: flex; align-items: center; gap: 6px; flex-shrink: 0; }
+  .sl-score { font-size: 12px; font-weight: 700; }
+  .sl-kbd { display: flex; gap: 3px; }
+  .kbd { background: #F5F8FF; border: 1px solid #DDE4EE; border-radius: 4px; padding: 1px 6px; font-size: 10px; color: #8A95A3; font-weight: 600; }
+  .sl-footer { padding: 7px 14px; background: #F5F8FF; border-top: 1px solid #EEF2F9; display: flex; gap: 14px; align-items: center; }
+  .sl-hint { display: flex; align-items: center; gap: 5px; font-size: 10px; color: #8A95A3; }
 </style>
 </head>
 <body>
@@ -22,7 +178,7 @@ const { useState, useEffect } = React;
 const API = "http://127.0.0.1:8000";
 
 const C = {
-  bg: "#FFFFFF", card: "#ffffff", sidebar: "#1C3D6B",
+  bg: "#F5F8FF", card: "#ffffff", sidebar: "#1C3D6B",
   accent: "#1558CB", accentSoft: "#EEF4FF",
   teal: "#0d9488", tealSoft: "#f0fdfa",
   gold: "#d97706", goldSoft: "#fffbeb",
@@ -150,27 +306,27 @@ const Badge = ({ label, color = C.teal, bg = C.tealSoft }) => (
 );
 
 const Avatar = ({ initials, size = 36 }) => (
-  <div style={{ width: size, height: size, borderRadius: "50%", background: "linear-gradient(135deg, #e63946, #c1121f)", display: "flex", alignItems: "center", justifyContent: "center", color: "#fff", fontSize: size * 0.33, fontFamily: font.head, fontWeight: 700, flexShrink: 0 }}>{initials}</div>
+  <div style={{ width: size, height: size, borderRadius: "50%", background: "linear-gradient(135deg, #1558CB, #1042A8)", display: "flex", alignItems: "center", justifyContent: "center", color: "#fff", fontSize: size * 0.33, fontFamily: font.head, fontWeight: 700, flexShrink: 0 }}>{initials}</div>
 );
 
 const Btn = ({ children, onClick, variant = "primary", small, full, disabled }) => {
   const styles = {
-    primary: { background: C.accent, color: "#fff", border: "none" },
-    outline: { background: "transparent", color: C.accent, border: `1px solid ${C.accent}` },
+    primary: { background: "linear-gradient(135deg,#1558CB,#1042A8)", color: "#fff", border: "none", boxShadow: "0 2px 8px rgba(21,88,203,0.22)" },
+    outline: { background: "transparent", color: C.accent, border: `1.5px solid ${C.accent}` },
     ghost: { background: "transparent", color: C.muted, border: `1px solid ${C.border}` },
-    success: { background: C.teal, color: "#fff", border: "none" },
-    warn: { background: C.gold, color: C.text, border: "none" },
+    success: { background: "linear-gradient(135deg,#0d9488,#0f766e)", color: "#fff", border: "none", boxShadow: "0 2px 6px rgba(13,148,136,0.2)" },
+    warn: { background: C.gold, color: "#fff", border: "none" },
   };
   const s = styles[variant] || styles.primary;
   return (
-    <button onClick={onClick} disabled={disabled} style={{ ...s, padding: small ? "6px 12px" : "9px 18px", borderRadius: 6, cursor: disabled ? "not-allowed" : "pointer", fontSize: small ? 11 : 13, fontFamily: font.body, fontWeight: 600, width: full ? "100%" : "auto", opacity: disabled ? 0.5 : 1 }}>{children}</button>
+    <button onClick={onClick} disabled={disabled} style={{ ...s, padding: small ? "6px 14px" : "9px 20px", borderRadius: 7, cursor: disabled ? "not-allowed" : "pointer", fontSize: small ? 12 : 13, fontFamily: font.body, fontWeight: 600, width: full ? "100%" : "auto", opacity: disabled ? 0.5 : 1, transition: "opacity 0.15s" }}>{children}</button>
   );
 };
 
 const StatCard = ({ label, value, sub, color = C.accent }) => (
-  <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 10, padding: "18px 22px", flex: 1, minWidth: 130 }}>
-    <div style={{ fontSize: 28, fontFamily: font.head, fontWeight: 700, color }}>{value}</div>
-    <div style={{ fontSize: 13, color: C.text, fontWeight: 600, marginTop: 2 }}>{label}</div>
+  <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 10, padding: "18px 22px", flex: 1, minWidth: 130, boxShadow: "0 1px 4px rgba(21,88,203,0.07)", borderTop: `3px solid ${color}` }}>
+    <div style={{ fontSize: 30, fontFamily: font.head, fontWeight: 800, color, letterSpacing: "-0.02em" }}>{value}</div>
+    <div style={{ fontSize: 13, color: C.text, fontWeight: 600, marginTop: 4 }}>{label}</div>
     {sub && <div style={{ fontSize: 11, color: C.muted, marginTop: 3 }}>{sub}</div>}
   </div>
 );
@@ -212,6 +368,9 @@ function PageLogin({ onLogin }) {
     if (res.success && res.token) {
       localStorage.setItem("cms_token", res.token);
       localStorage.setItem("cms_username", res.username || username.trim());
+      localStorage.setItem("cms_role", res.role || "recruiter");
+      if (res.user_id)     localStorage.setItem("cms_user_id",     String(res.user_id));
+      if (res.permissions) localStorage.setItem("cms_permissions", JSON.stringify(res.permissions));
       localStorage.setItem("cms_ui_pref", uiPref);
       if (uiPref === "premium") {
         window.location.href = "/static/preview.html";
@@ -224,95 +383,108 @@ function PageLogin({ onLogin }) {
     }
   };
 
-  const inputStyle = {
-    display: "block", width: "100%", padding: "12px 16px",
-    border: `1.5px solid ${C.border}`, borderRadius: 8,
-    fontSize: 15, fontFamily: font.body, color: C.text,
-    background: "#fff", outline: "none", transition: "border-color 0.2s",
-    boxSizing: "border-box",
+  const inp = {
+    display:"block", width:"100%", padding:"11px 14px",
+    border:`1.5px solid ${C.border}`, borderRadius:8,
+    fontSize:14, fontFamily:font.body, color:C.text,
+    background:"#fff", boxSizing:"border-box",
   };
   return (
-    <div style={{ minHeight: "100vh", background: "linear-gradient(160deg,#EBF2FF 0%,#F5F8FF 50%,#EBF2FF 100%)", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: "32px 16px" }}>
+    <div style={{ display:"flex", minHeight:"100vh" }}>
 
-      {/* Logo + brand */}
-      <div style={{ textAlign: "center", marginBottom: 32 }}>
-        <img src="/static/logo.png" alt="Kforce" style={{ height: 42, display: "block", margin: "0 auto 14px", imageRendering: "auto" }} />
-        <div style={{ display: "inline-flex", alignItems: "baseline" }}>
-          <span style={{ fontSize: 26, fontWeight: 900, color: "#1C3D6B", letterSpacing: "-0.02em" }}>K</span>
-          <span style={{ fontSize: 26, fontWeight: 700, color: "#1558CB", letterSpacing: "-0.01em" }}>&thinsp;Recruit</span>
+      {/* ── LEFT PANEL — Kforce brand ── */}
+      <div style={{ width:"42%", minWidth:340, background:"linear-gradient(170deg,#1C3D6B 0%,#1558CB 100%)", display:"flex", flexDirection:"column", justifyContent:"space-between", padding:"48px 48px 40px", position:"relative", overflow:"hidden" }}>
+        {/* background circles decoration */}
+        <div style={{ position:"absolute", width:320, height:320, borderRadius:"50%", background:"rgba(255,255,255,0.04)", top:-80, right:-80 }} />
+        <div style={{ position:"absolute", width:200, height:200, borderRadius:"50%", background:"rgba(255,255,255,0.05)", bottom:60, left:-60 }} />
+
+        {/* Logo */}
+        <div>
+          <img src="/static/logo.png" alt="Kforce" style={{ height:36, filter:"brightness(0) invert(1)", display:"block", marginBottom:48 }} />
+          <div style={{ fontSize:32, fontWeight:800, color:"#fff", letterSpacing:"-0.02em", lineHeight:1.2, marginBottom:16 }}>
+            Smarter Recruiting<br/>Starts Here
+          </div>
+          <div style={{ fontSize:15, color:"rgba(255,255,255,0.65)", lineHeight:1.7, maxWidth:280 }}>
+            AI-powered resume scoring and optimization for Kforce recruiters.
+          </div>
+          <div style={{ marginTop:40, display:"flex", flexDirection:"column", gap:14 }}>
+            {["Resume scoring & gap analysis","JD-aligned resume generation","Pipeline tracking & approvals"].map(f => (
+              <div key={f} style={{ display:"flex", alignItems:"center", gap:10 }}>
+                <div style={{ width:20, height:20, borderRadius:"50%", background:"rgba(255,255,255,0.15)", display:"flex", alignItems:"center", justifyContent:"center", flexShrink:0 }}>
+                  <span style={{ color:"#00D4E8", fontSize:11 }}>✓</span>
+                </div>
+                <span style={{ fontSize:13, color:"rgba(255,255,255,0.75)" }}>{f}</span>
+              </div>
+            ))}
+          </div>
         </div>
-        <div style={{ width: 40, height: 3, background: "linear-gradient(90deg,#00B4CC,#1558CB)", borderRadius: 3, margin: "8px auto 0" }} />
+
+        <div style={{ fontSize:12, color:"rgba(255,255,255,0.35)" }}>© {new Date().getFullYear()} Kforce Inc.</div>
       </div>
 
-      {/* Card */}
-      <div style={{ width: "100%", maxWidth: 480, background: "#fff", borderRadius: 18, padding: "44px 48px 40px", boxShadow: "0 2px 4px rgba(21,88,203,0.06), 0 12px 40px rgba(21,88,203,0.12)", border: "1px solid rgba(21,88,203,0.1)" }}>
+      {/* ── RIGHT PANEL — Login form ── */}
+      <div style={{ flex:1, display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center", padding:"48px 40px", background:"#fff" }}>
+        <div style={{ width:"100%", maxWidth:400 }}>
 
-        <div style={{ marginBottom: 32 }}>
-          <div style={{ fontSize: 22, fontWeight: 700, color: C.text, marginBottom: 6, letterSpacing: "-0.01em" }}>Welcome back</div>
-          <div style={{ fontSize: 14, color: C.muted, lineHeight: 1.5 }}>Sign in to your K Recruit account to continue</div>
-        </div>
-
-        <form onSubmit={handleSubmit}>
-          {/* Username */}
-          <div style={{ marginBottom: 20 }}>
-            <label style={{ fontSize: 13, fontWeight: 600, color: C.text, display: "block", marginBottom: 8 }}>Username</label>
-            <input type="text" value={username} onChange={e => setUsername(e.target.value)} autoFocus
-              placeholder="Enter your username" style={inputStyle}
-              onFocus={e => e.target.style.borderColor = "#1558CB"}
-              onBlur={e => e.target.style.borderColor = C.border} />
-          </div>
-
-          {/* Password */}
-          <div style={{ marginBottom: 24 }}>
-            <label style={{ fontSize: 13, fontWeight: 600, color: C.text, display: "block", marginBottom: 8 }}>Password</label>
-            <div style={{ position: "relative" }}>
-              <input type={showPwd ? "text" : "password"} value={password} onChange={e => setPassword(e.target.value)}
-                placeholder="Enter your password"
-                style={{ ...inputStyle, paddingRight: 48 }}
-                onFocus={e => e.target.style.borderColor = "#1558CB"}
-                onBlur={e => e.target.style.borderColor = C.border} />
-              <button type="button" onClick={() => setShowPwd(!showPwd)}
-                style={{ position: "absolute", right: 12, top: "50%", transform: "translateY(-50%)", background: "none", border: "none", cursor: "pointer", fontSize: 16, color: C.muted, padding: 4 }}>
-                {showPwd ? "🙈" : "👁"}
-              </button>
+          {/* K Recruit heading */}
+          <div style={{ marginBottom:36 }}>
+            <div style={{ display:"flex", alignItems:"baseline", marginBottom:8 }}>
+              <span style={{ fontSize:28, fontWeight:900, color:"#1C3D6B", letterSpacing:"-0.02em" }}>K</span>
+              <span style={{ fontSize:28, fontWeight:700, color:"#1558CB", letterSpacing:"-0.01em" }}>&thinsp;Recruit</span>
             </div>
+            <div style={{ width:36, height:3, background:"linear-gradient(90deg,#00B4CC,#1558CB)", borderRadius:3, marginBottom:20 }} />
+            <div style={{ fontSize:22, fontWeight:700, color:C.text, marginBottom:6, letterSpacing:"-0.01em" }}>Welcome back</div>
+            <div style={{ fontSize:14, color:C.muted }}>Sign in to access your account</div>
           </div>
 
-          {/* Interface selector */}
-          <div style={{ marginBottom: 28 }}>
-            <label style={{ fontSize: 13, fontWeight: 600, color: C.text, display: "block", marginBottom: 10 }}>Select Interface</label>
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
-              {[["classic","Classic UI","⬜"],["premium","New Premium UI","✦"]].map(([opt, label, icon]) => (
-                <button key={opt} type="button"
-                  onClick={() => { setUiPref(opt); localStorage.setItem("cms_ui_pref", opt); }}
-                  style={{
-                    padding: "12px 16px", borderRadius: 10, cursor: "pointer", textAlign: "left",
-                    border: uiPref === opt ? `2px solid ${C.accent}` : `1.5px solid ${C.border}`,
-                    background: uiPref === opt ? "#EEF4FF" : "#fff",
-                    transition: "all 0.2s",
-                  }}>
-                  <div style={{ fontSize: 16, marginBottom: 3 }}>{icon}</div>
-                  <div style={{ fontSize: 13, fontWeight: uiPref === opt ? 700 : 500, color: uiPref === opt ? C.accent : C.text }}>{label}</div>
+          <form onSubmit={handleSubmit} noValidate>
+            <div style={{ marginBottom:18 }}>
+              <label style={{ fontSize:13, fontWeight:600, color:C.text, display:"block", marginBottom:7 }}>Username</label>
+              <input type="text" value={username} onChange={e=>setUsername(e.target.value)} autoFocus
+                placeholder="Enter username" style={inp} />
+            </div>
+
+            <div style={{ marginBottom:20 }}>
+              <label style={{ fontSize:13, fontWeight:600, color:C.text, display:"block", marginBottom:7 }}>Password</label>
+              <div style={{ position:"relative" }}>
+                <input type={showPwd?"text":"password"} value={password} onChange={e=>setPassword(e.target.value)}
+                  placeholder="Enter password" style={{ ...inp, paddingRight:46 }} />
+                <button type="button" onClick={()=>setShowPwd(!showPwd)}
+                  style={{ position:"absolute", right:12, top:"50%", transform:"translateY(-50%)", background:"none", border:"none", cursor:"pointer", fontSize:15, color:C.muted }}>
+                  {showPwd?"🙈":"👁"}
                 </button>
-              ))}
+              </div>
             </div>
-          </div>
 
-          {error && (
-            <div style={{ background: "#EEF4FF", border: `1.5px solid ${C.accent}`, borderRadius: 10, padding: "12px 16px", marginBottom: 20, fontSize: 13, color: C.accent, display: "flex", alignItems: "center", gap: 8 }}>
-              <span>⚠</span> {error}
+            <div style={{ marginBottom:24 }}>
+              <label style={{ fontSize:13, fontWeight:600, color:C.text, display:"block", marginBottom:10 }}>Select Interface</label>
+              <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:10 }}>
+                {[["classic","Classic UI"],["premium","New Premium UI"]].map(([opt,label]) => (
+                  <button key={opt} type="button"
+                    onClick={()=>{ setUiPref(opt); localStorage.setItem("cms_ui_pref",opt); }}
+                    style={{ padding:"11px 14px", borderRadius:8, cursor:"pointer", textAlign:"center", fontFamily:font.body,
+                      border: uiPref===opt ? `2px solid ${C.accent}` : `1.5px solid ${C.border}`,
+                      background: uiPref===opt ? "#EEF4FF" : "#FAFBFE",
+                      color: uiPref===opt ? C.accent : C.muted,
+                      fontSize:13, fontWeight: uiPref===opt ? 700 : 500 }}>
+                    {label}
+                  </button>
+                ))}
+              </div>
             </div>
-          )}
 
-          <button type="submit" disabled={loading}
-            style={{ width: "100%", padding: "14px", background: loading ? C.muted : `linear-gradient(135deg,#1558CB,#1042A8)`, color: "#fff", border: "none", borderRadius: 10, fontSize: 15, fontWeight: 700, fontFamily: font.body, cursor: loading ? "not-allowed" : "pointer", letterSpacing: "0.01em", boxShadow: loading ? "none" : "0 4px 14px rgba(21,88,203,0.35)", transition: "all 0.2s" }}>
-            {loading ? "Signing in…" : "Sign In →"}
-          </button>
-        </form>
-      </div>
+            {error && (
+              <div style={{ background:"#FFF0F0", border:"1.5px solid #FFCDD2", borderRadius:8, padding:"11px 14px", marginBottom:18, fontSize:13, color:"#C62828" }}>
+                ⚠ {error}
+              </div>
+            )}
 
-      <div style={{ marginTop: 28, textAlign: "center" }}>
-        <span style={{ fontSize: 12, color: "#94A3B8" }}>© {new Date().getFullYear()} Kforce Inc. All rights reserved.</span>
+            <button type="submit" disabled={loading}
+              style={{ width:"100%", padding:"13px", background:loading?C.muted:"linear-gradient(135deg,#1558CB,#1042A8)", color:"#fff", border:"none", borderRadius:9, fontSize:15, fontWeight:700, fontFamily:font.body, cursor:loading?"not-allowed":"pointer", boxShadow:loading?"none":"0 4px 16px rgba(21,88,203,0.3)", letterSpacing:"0.02em" }}>
+              {loading ? "Signing in…" : "Sign In →"}
+            </button>
+          </form>
+        </div>
       </div>
     </div>
   );
@@ -366,18 +538,307 @@ function Sidebar({ active, setPage, ollamaOnline, ollamaProvider, username, onLo
             <div style={{ fontSize: 10, color: "rgba(255,255,255,0.35)" }}>Logged in</div>
           </div>
         </div>
-        <button onClick={onLogout} style={{ width: "100%", padding: "7px 12px", background: "rgba(230,57,70,0.15)", border: "1px solid rgba(230,57,70,0.3)", borderRadius: 7, color: C.accent, fontSize: 12, fontWeight: 600, cursor: "pointer", textAlign: "left" }}>⎋ Sign Out</button>
+        <button onClick={onLogout} style={{ width: "100%", padding: "7px 12px", background: "rgba(21,88,203,0.15)", border: "1px solid rgba(91,173,255,0.3)", borderRadius: 7, color: "#5BADFF", fontSize: 12, fontWeight: 600, cursor: "pointer", textAlign: "left" }}>⎋ Sign Out</button>
       </div>
     </div>
   );
 }
 
-function Topbar({ title, sub, setPage }) {
+// ── AI Panel Context ────────────────────────────────────────────────
+const AICtx = React.createContext({ onAIToggle: () => {}, aiOpen: false, onSpotlight: () => {} });
+
+// ── AIPanel ──────────────────────────────────────────────────────────
+function AIPanel({ open, width, onWidthChange, onClose, page, candidateId }) {
+  const [tab, setTab] = React.useState("context");
+  const [messages, setMessages] = React.useState([
+    { role: "ai", text: "Hi! I'm K Recruit AI. Ask me about candidates, scores, gaps, interview questions, or pipeline status." }
+  ]);
+  const [input, setInput] = React.useState("");
+  const [loading, setLoading] = React.useState(false);
+  const [insights, setInsights] = React.useState(null);
+  const [insightsLoading, setInsightsLoading] = React.useState(false);
+  const handleRef = React.useRef(null);
+  const chatEndRef = React.useRef(null);
+  const dragging = React.useRef(false);
+
+  // Resize drag
+  React.useEffect(() => {
+    const handle = handleRef.current;
+    if (!handle) return;
+    const onDown = (e) => { dragging.current = true; handle.classList.add("dragging"); document.body.style.cursor = "col-resize"; document.body.style.userSelect = "none"; e.preventDefault(); };
+    const onMove = (e) => { if (!dragging.current) return; const w = Math.min(Math.max(window.innerWidth - e.clientX, 260), 660); onWidthChange(w); };
+    const onUp   = () => { if (!dragging.current) return; dragging.current = false; handle.classList.remove("dragging"); document.body.style.cursor = ""; document.body.style.userSelect = ""; };
+    handle.addEventListener("mousedown", onDown);
+    window.addEventListener("mousemove", onMove);
+    window.addEventListener("mouseup", onUp);
+    return () => { handle.removeEventListener("mousedown", onDown); window.removeEventListener("mousemove", onMove); window.removeEventListener("mouseup", onUp); };
+  }, [onWidthChange]);
+
+  // Auto-scroll chat
+  React.useEffect(() => { if (chatEndRef.current) chatEndRef.current.scrollIntoView({ behavior: "smooth" }); }, [messages]);
+
+  // Load context insights
+  React.useEffect(() => {
+    if (!open || tab !== "context") return;
+    setInsightsLoading(true); setInsights(null);
+    const ctx = { page }; if (candidateId) ctx.candidate_id = candidateId;
+    const msg = `Give me 3 short AI insights for a recruiter on the "${page}" page${candidateId ? ` viewing candidate ${candidateId}` : ""}. Format as a JSON array: [{"type":"info|warn|good","title":"...","body":"...","action":"..."}]. Return only the JSON array, no markdown.`;
+    fetch(`${API}/bot/chat`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ message: msg, context: ctx }) })
+      .then(r => r.json())
+      .then(d => {
+        try {
+          const m = (d.reply || "").match(/\[[\s\S]*\]/);
+          setInsights(m ? JSON.parse(m[0]) : [{ type: "info", title: "AI Summary", body: (d.reply || "").slice(0, 160), action: "Ask me more in Chat" }]);
+        } catch (ex) { setInsights([{ type: "info", title: "AI Ready", body: (d.reply || "").slice(0, 160) || "Context loaded.", action: "Switch to Chat for questions" }]); }
+        setInsightsLoading(false);
+      })
+      .catch(() => { setInsights([{ type: "warn", title: "AI Offline", body: "Configure your AI provider in Settings to enable insights.", action: "Open Settings" }]); setInsightsLoading(false); });
+  }, [open, tab, page, candidateId]);
+
+  const sendMsg = async (textOverride) => {
+    const msg = (textOverride || input).trim();
+    if (!msg || loading) return;
+    setInput(""); setTab("chat");
+    setMessages(m => [...m, { role: "user", text: msg }]);
+    setLoading(true);
+    try {
+      const ctx = { page }; if (candidateId) ctx.candidate_id = candidateId;
+      const r = await fetch(`${API}/bot/chat`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ message: msg, context: ctx }) });
+      const d = await r.json();
+      setMessages(m => [...m, { role: "ai", text: d.reply || "No response received." }]);
+    } catch (ex) { setMessages(m => [...m, { role: "ai", text: "Could not reach AI. Check Settings → AI Configuration." }]); }
+    setLoading(false);
+  };
+
+  const icol = { info: ["#EEF4FF","#C7D9F8","#1558CB"], warn: ["#fffbeb","#fde68a","#d97706"], good: ["#f0fdfa","#99f6e4","#0d9488"] };
+  const pageActions = {
+    dashboard: [{ icon:"📊", label:"Pipeline summary", desc:"AI overview of full pipeline", msg:"Give me a concise pipeline summary" }, { icon:"🎯", label:"Top candidates", desc:"Highest scoring candidates", msg:"Who are the top 5 candidates by score?" }, { icon:"⚠", label:"Low score alerts", desc:"Candidates needing attention", msg:"Which candidates have low scores that need review?" }],
+    listing:   [{ icon:"🔍", label:"Filter advice", desc:"Best candidates to shortlist", msg:"Which candidates should I shortlist based on scores?" }, { icon:"📈", label:"Score distribution", desc:"Explain current score spread", msg:"Explain the score distribution across candidates" }],
+    review:    [{ icon:"💡", label:"Explain score", desc:"Why this candidate scored this way", msg:"Explain why this candidate scored this way" }, { icon:"❓", label:"Interview questions", desc:"Based on skill gaps", msg:"Generate interview questions based on this candidate's gaps" }, { icon:"📝", label:"Next action", desc:"What to do next", msg:"What is the best next action for this candidate?" }],
+    pipeline:  [{ icon:"⏳", label:"Pending review", desc:"Who needs analysis first", msg:"Which pending candidates should I analyze first?" }, { icon:"✅", label:"Approval ready", desc:"Who is ready to approve", msg:"Which candidates are ready for approval?" }],
+    jdmanager: [{ icon:"📋", label:"JD tips", desc:"Improve job description quality", msg:"What makes a strong job description for resume matching?" }],
+    upload:    [{ icon:"⬆", label:"Upload tips", desc:"Best practices for uploading", msg:"What file formats and tips should I know when uploading resumes?" }],
+    settings:  [{ icon:"⚙", label:"Setup guide", desc:"Help with AI configuration", msg:"Walk me through setting up the AI provider configuration" }],
+  };
+  const actions = pageActions[page] || pageActions.dashboard;
+  const chips = ["Top candidates?", "Who needs review?", "Interview questions?", "Pipeline status?"];
+
   return (
-    <div style={{ height: 60, background: C.card, borderBottom: `1px solid ${C.border}`, display: "flex", alignItems: "center", padding: "0 28px", position: "sticky", top: 0, zIndex: 50 }}>
-      <div>
-        <div style={{ fontSize: 16, fontFamily: font.head, fontWeight: 700, color: C.text }}>{title}</div>
-        {sub && <div style={{ fontSize: 11, color: C.muted, marginTop: 1 }}>{sub}</div>}
+    <div className={`ai-panel-wrap${open ? " open" : ""}`}>
+      <div ref={handleRef} className="ai-resize-handle" />
+      <div className="ai-panel-box" style={{ width }}>
+        {/* Header */}
+        <div className="ai-panel-head">
+          <div className="ai-pulse" />
+          <div style={{ flex: 1 }}>
+            <div style={{ fontSize: 14, fontWeight: 700, color: "#fff" }}>K Recruit AI</div>
+            <div style={{ fontSize: 10, color: "rgba(255,255,255,0.55)", marginTop: 1 }}>Ambient Intelligence</div>
+          </div>
+          <button onClick={onClose} style={{ background: "rgba(255,255,255,0.12)", border: "none", borderRadius: 6, color: "#fff", width: 28, height: 28, cursor: "pointer", fontSize: 15, display: "flex", alignItems: "center", justifyContent: "center" }}>✕</button>
+        </div>
+        {/* Tabs */}
+        <div className="ai-tabs">
+          {[["context","⚡ Context"],["chat","💬 Chat"],["actions","🎯 Actions"]].map(([t,lbl]) => (
+            <div key={t} className={`ai-tab${tab===t?" active":""}`} onClick={() => setTab(t)}>
+              {t === "context" && <div className="tab-live" />}{lbl}
+            </div>
+          ))}
+        </div>
+        {/* Body */}
+        <div className="ai-body">
+          {/* ── Context tab ── */}
+          {tab === "context" && (
+            <div className="ctx-mode">
+              <div className="ctx-greet">
+                <div style={{ fontSize: 12, fontWeight: 700, color: "#1558CB" }}>Live context · {page}</div>
+                <div style={{ fontSize: 11, color: "#6B7F9E", marginTop: 3, lineHeight: 1.5 }}>AI is reading your current view and surfacing what matters most right now.</div>
+              </div>
+              {insightsLoading && (
+                <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "12px 4px" }}>
+                  <div className="typing-dots"><span/><span/><span/></div>
+                  <span style={{ fontSize: 11, color: "#8A95A3" }}>Analyzing pipeline…</span>
+                </div>
+              )}
+              {insights && insights.map((ins, i) => {
+                const [bg, border, color] = icol[ins.type] || icol.info;
+                return (
+                  <div key={i} className="insight-card" style={{ background: bg, borderColor: border }} onClick={() => sendMsg(ins.action)}>
+                    <div style={{ fontSize: 12, fontWeight: 700, color }}>{ins.title}</div>
+                    <div style={{ fontSize: 11.5, color: "#1A2E4A", lineHeight: 1.55, marginTop: 4 }}>{ins.body}</div>
+                    <div className="ic-action" style={{ color }}>→ {ins.action}</div>
+                  </div>
+                );
+              })}
+              <div style={{ marginTop: 6 }}>
+                <div className="ctx-section">Quick questions</div>
+                <div style={{ display: "flex", flexWrap: "wrap", gap: 5, marginTop: 6 }}>
+                  {chips.map(c => <div key={c} className="chat-chip" onClick={() => sendMsg(c)}>{c}</div>)}
+                </div>
+              </div>
+            </div>
+          )}
+          {/* ── Chat tab ── */}
+          {tab === "chat" && (
+            <div className="chat-mode">
+              <div className="chat-msgs">
+                {messages.map((m, i) => (
+                  <div key={i} className={`cmsg${m.role==="user"?" user":""}`}>
+                    {m.role === "ai" ? <div className="cmsg-av" style={{ fontSize: 13 }}>🤖</div> : <div className="cmsg-uav">ME</div>}
+                    <div className="cmsg-b">{m.text}</div>
+                  </div>
+                ))}
+                {loading && (
+                  <div className="cmsg">
+                    <div className="cmsg-av" style={{ fontSize: 13 }}>🤖</div>
+                    <div className="cmsg-b"><div className="typing-dots"><span/><span/><span/></div></div>
+                  </div>
+                )}
+                <div ref={chatEndRef} />
+              </div>
+              {messages.length <= 1 && (
+                <div className="chat-chips">
+                  {chips.map(c => <div key={c} className="chat-chip" onClick={() => sendMsg(c)}>{c}</div>)}
+                </div>
+              )}
+              <div className="chat-input-row">
+                <textarea className="chat-inp" rows={1} placeholder="Ask anything about your pipeline…" value={input}
+                  onChange={e => setInput(e.target.value)}
+                  onKeyDown={e => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); sendMsg(); } }}
+                  style={{ maxHeight: 80 }} />
+                <button className="chat-send" onClick={() => sendMsg()} disabled={loading || !input.trim()}>➤</button>
+              </div>
+            </div>
+          )}
+          {/* ── Actions tab ── */}
+          {tab === "actions" && (
+            <div className="act-mode">
+              <div className="act-grp">Page Actions — {page}</div>
+              {actions.map((a, i) => (
+                <button key={i} className="act-btn-item" onClick={() => sendMsg(a.msg)}>
+                  <div style={{ width: 34, height: 34, borderRadius: 8, background: "#EEF4FF", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 16, flexShrink: 0 }}>{a.icon}</div>
+                  <div><div style={{ fontSize: 13, fontWeight: 600, color: "#1A2E4A" }}>{a.label}</div><div style={{ fontSize: 11, color: "#8A95A3", marginTop: 2 }}>{a.desc}</div></div>
+                  <div className="act-arrow">›</div>
+                </button>
+              ))}
+              <div className="act-grp" style={{ marginTop: 8 }}>General</div>
+              {[
+                { icon:"📋", label:"Summarize pipeline", desc:"Full pipeline status report", msg:"Give me a complete pipeline summary with all stats", bg:"#f0fdfa" },
+                { icon:"🔥", label:"Urgent candidates", desc:"Who needs immediate action", msg:"Which candidates need immediate action or review?", bg:"#fffbeb" },
+                { icon:"📧", label:"Draft outreach note", desc:"Generate follow-up message", msg:"Draft a short professional recruiter outreach note for the top candidate", bg:"#EEF4FF" },
+              ].map((a, i) => (
+                <button key={i} className="act-btn-item" onClick={() => sendMsg(a.msg)}>
+                  <div style={{ width: 34, height: 34, borderRadius: 8, background: a.bg, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 16, flexShrink: 0 }}>{a.icon}</div>
+                  <div><div style={{ fontSize: 13, fontWeight: 600, color: "#1A2E4A" }}>{a.label}</div><div style={{ fontSize: 11, color: "#8A95A3", marginTop: 2 }}>{a.desc}</div></div>
+                  <div className="act-arrow">›</div>
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ── Spotlight ────────────────────────────────────────────────────────
+function Spotlight({ open, onClose, setPage, setSelectedId, candidates }) {
+  const [query, setQuery] = React.useState("");
+  const inputRef = React.useRef(null);
+
+  React.useEffect(() => {
+    if (open) { setQuery(""); setTimeout(() => inputRef.current && inputRef.current.focus(), 30); }
+  }, [open]);
+
+  React.useEffect(() => {
+    const h = (e) => { if (e.key === "Escape") onClose(); };
+    window.addEventListener("keydown", h);
+    return () => window.removeEventListener("keydown", h);
+  }, [onClose]);
+
+  const navPages = [
+    { id: "dashboard",   icon: "⬛", label: "Dashboard",       sub: "Overview of all activity" },
+    { id: "jdmanager",   icon: "📋", label: "JD Manager",       sub: "Manage job descriptions" },
+    { id: "upload",      icon: "⬆", label: "Upload Resume",    sub: "Add new candidate" },
+    { id: "listing",     icon: "☰", label: "Candidate List",   sub: "Browse all candidates" },
+    { id: "pipeline",    icon: "⚙", label: "Pipeline Status",  sub: "View pipeline health" },
+    { id: "settings",    icon: "◎", label: "Settings",         sub: "AI & account configuration" },
+  ];
+
+  const q = query.toLowerCase();
+  const filteredNav   = q ? navPages.filter(p => p.label.toLowerCase().includes(q) || p.sub.toLowerCase().includes(q)) : navPages;
+  const filteredCands = q && candidates ? candidates.filter(c => c.name && c.name.toLowerCase().includes(q)).slice(0, 5) : [];
+  const scoreColor    = (s) => s >= 80 ? "#0d9488" : s >= 60 ? "#d97706" : "#ef4444";
+
+  return (
+    <div className={`spotlight-overlay${open ? " open" : ""}`} onClick={e => e.target === e.currentTarget && onClose()}>
+      <div className="spotlight-box">
+        <div className="sl-head">
+          <span style={{ fontSize: 16, color: "#8A95A3" }}>🔍</span>
+          <input ref={inputRef} className="sl-input" placeholder="Search pages, candidates…" value={query}
+            onChange={e => setQuery(e.target.value)} onKeyDown={e => e.key === "Escape" && onClose()} />
+          <div className="sl-kbd"><span className="kbd">Esc</span></div>
+        </div>
+        <div className="sl-results">
+          {filteredNav.length > 0 && <>
+            <div className="sl-group">Navigate</div>
+            {filteredNav.map(p => (
+              <div key={p.id} className="sl-item" onClick={() => { setPage(p.id); onClose(); }}>
+                <div className="sl-icon">{p.icon}</div>
+                <div><div className="sl-title">{p.label}</div><div className="sl-sub">{p.sub}</div></div>
+                <div className="sl-right"><div className="sl-kbd"><span className="kbd">↵</span></div></div>
+              </div>
+            ))}
+          </>}
+          {filteredCands.length > 0 && <>
+            <div className="sl-group">Candidates</div>
+            {filteredCands.map(c => (
+              <div key={c.id} className="sl-item" onClick={() => { setSelectedId(c.id); setPage("review"); onClose(); }}>
+                <div className="sl-icon" style={{ background: "#EEF4FF", border: "1px solid #C7D9F8" }}>👤</div>
+                <div><div className="sl-title">{c.name}</div><div className="sl-sub">{c.role || "No role"} · {c.status}</div></div>
+                <div className="sl-right">
+                  {c.score != null && <span className="sl-score" style={{ color: scoreColor(c.score) }}>{c.score}%</span>}
+                  <div className="sl-kbd"><span className="kbd">↵</span></div>
+                </div>
+              </div>
+            ))}
+          </>}
+          {q && filteredNav.length === 0 && filteredCands.length === 0 && (
+            <div style={{ padding: "20px", textAlign: "center", color: "#8A95A3", fontSize: 13 }}>No results for "{query}"</div>
+          )}
+        </div>
+        <div className="sl-footer">
+          <div className="sl-hint"><span className="kbd">↵</span> Open</div>
+          <div className="sl-hint"><span className="kbd">Esc</span> Close</div>
+          <div style={{ marginLeft: "auto" }}>
+            <span className="sl-hint"><span className="kbd">Ctrl</span><span className="kbd">K</span> toggle</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ── Topbar ───────────────────────────────────────────────────────────
+function Topbar({ title, sub, setPage }) {
+  const { onAIToggle, aiOpen, onSpotlight } = React.useContext(AICtx);
+  return (
+    <div style={{ height: 64, background: C.card, borderBottom: `1px solid ${C.border}`, display: "flex", alignItems: "center", padding: "0 32px", position: "sticky", top: 0, zIndex: 50, boxShadow: "0 1px 6px rgba(0,0,0,0.05)" }}>
+      <div style={{ flex: 1 }}>
+        <div style={{ fontSize: 17, fontFamily: font.head, fontWeight: 700, color: C.text, letterSpacing: "-0.01em" }}>{title}</div>
+        {sub && <div style={{ fontSize: 12, color: C.muted, marginTop: 2 }}>{sub}</div>}
+      </div>
+      <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+        <button onClick={onSpotlight} style={{ display: "flex", alignItems: "center", gap: 7, padding: "7px 14px", borderRadius: 8, border: `1.5px solid ${C.border}`, background: C.bg, color: C.muted, cursor: "pointer", fontSize: 12, fontFamily: font.body, transition: "all 0.15s" }}>
+          🔍 <span>Search</span>
+          <span style={{ display: "flex", gap: 3, marginLeft: 4 }}>
+            <span style={{ background: "#EEF2F9", border: `1px solid ${C.border}`, borderRadius: 4, padding: "1px 5px", fontSize: 10, color: C.muted, fontWeight: 600 }}>Ctrl</span>
+            <span style={{ background: "#EEF2F9", border: `1px solid ${C.border}`, borderRadius: 4, padding: "1px 5px", fontSize: 10, color: C.muted, fontWeight: 600 }}>K</span>
+          </span>
+        </button>
+        <button onClick={onAIToggle} className={`ai-trigger-btn${aiOpen ? " active" : ""}`}>
+          <div className="ai-pulse" />
+          <span>K AI</span>
+        </button>
       </div>
     </div>
   );
@@ -397,7 +858,7 @@ function PageDashboard({ setPage }) {
   return (
     <div>
       <Topbar title="Dashboard" sub="Overview of all candidate activity" setPage={setPage} />
-      <div style={{ padding: 28 }}>
+      <div style={{ padding: "28px 32px" }}>
         <div style={{ display: "flex", gap: 16, flexWrap: "wrap", marginBottom: 28 }}>
           <StatCard label="Total Candidates" value={total} color={C.accent} />
           <StatCard label="Pending Review" value={pending} color={C.gold} />
@@ -405,9 +866,9 @@ function PageDashboard({ setPage }) {
           <StatCard label="Approved" value={approved} color="#2a9d8f" />
         </div>
         <div style={{ display: "grid", gridTemplateColumns: "1fr 280px", gap: 20 }}>
-          <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 10, overflow: "hidden" }}>
+          <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 10, overflow: "hidden", boxShadow: "0 1px 4px rgba(21,88,203,0.06)" }}>
             <div style={{ padding: "16px 20px", borderBottom: `1px solid ${C.border}`, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-              <div style={{ fontSize: 14, fontFamily: font.head, fontWeight: 700 }}>Recent Candidates</div>
+              <div style={{ fontSize: 15, fontFamily: font.head, fontWeight: 700 }}>Recent Candidates</div>
               <Btn onClick={() => setPage("listing")} variant="ghost" small>View All →</Btn>
             </div>
             {candidates.length === 0 && <div style={{ padding: 28, textAlign: "center", color: C.muted, fontSize: 13 }}>No candidates yet. Upload a resume to get started!</div>}
@@ -425,7 +886,7 @@ function PageDashboard({ setPage }) {
           </div>
           <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
             <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 10, padding: 20 }}>
-              <div style={{ fontSize: 13, fontFamily: font.head, fontWeight: 700, marginBottom: 14 }}>Quick Actions</div>
+              <div style={{ fontSize: 15, fontFamily: font.head, fontWeight: 700, marginBottom: 14 }}>Quick Actions</div>
               {[
                 { label: "Upload New Resume", icon: "⬆", page: "upload" },
                 { label: "View Candidate List", icon: "☰", page: "listing" },
@@ -435,7 +896,7 @@ function PageDashboard({ setPage }) {
                 { label: "Pipeline Status", icon: "⚙", page: "pipeline" },
               ].map(a => (
                 <div key={a.label} onClick={() => setPage(a.page)} style={{ display: "flex", alignItems: "center", gap: 10, padding: "9px 12px", background: C.bg, borderRadius: 7, cursor: "pointer", marginBottom: 8 }}>
-                  <span>{a.icon}</span><span style={{ fontSize: 12, color: C.text, fontWeight: 500 }}>{a.label}</span>
+                  <span>{a.icon}</span><span style={{ fontSize: 13, color: C.text, fontWeight: 500 }}>{a.label}</span>
                 </div>
               ))}
             </div>
@@ -508,7 +969,7 @@ function PageUpload({ setPage, setSelectedId, startAI, stopAI }) {
       <div style={{ padding: 28, maxWidth: 860 }}>
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 20, marginBottom: 20 }}>
           <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 10, padding: 24 }}>
-            <div style={{ fontSize: 14, fontFamily: font.head, fontWeight: 700, marginBottom: 16 }}>Candidate Resume (PDF)</div>
+            <div style={{ fontSize: 15, fontFamily: font.head, fontWeight: 700, marginBottom: 16 }}>Candidate Resume (PDF)</div>
             <label style={{ display: "block", border: `2px dashed ${file ? C.teal : C.border}`, borderRadius: 10, padding: "32px 20px", textAlign: "center", background: file ? C.tealSoft : C.bg, cursor: "pointer" }}>
               <div style={{ fontSize: 36, marginBottom: 10 }}>📄</div>
               <div style={{ fontSize: 13, color: C.muted }}>Click to upload PDF</div>
@@ -517,14 +978,14 @@ function PageUpload({ setPage, setSelectedId, startAI, stopAI }) {
             </label>
           </div>
           <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 10, padding: 24 }}>
-            <div style={{ fontSize: 14, fontFamily: font.head, fontWeight: 700, marginBottom: 16 }}>Select Job Description</div>
+            <div style={{ fontSize: 15, fontFamily: font.head, fontWeight: 700, marginBottom: 16 }}>Select Job Description</div>
             {jds.length === 0 ? (
               <div style={{ background: C.goldSoft, border: `1px solid ${C.gold}`, borderRadius: 8, padding: 14, fontSize: 12, color: C.text }}>
                 No JDs found. <span style={{ color: C.accent, cursor: "pointer", fontWeight: 700 }} onClick={() => setPage("jdmanager")}>Go to JD Manager →</span> to create one first.
               </div>
             ) : (
               <>
-                <select value={selectedJD} onChange={e => setSelectedJD(e.target.value)} style={{ display: "block", width: "100%", padding: "9px 12px", border: `1px solid ${C.border}`, borderRadius: 6, fontSize: 13, background: C.bg, marginBottom: 12 }}>
+                <select value={selectedJD} onChange={e => setSelectedJD(e.target.value)} style={{ display: "block", width: "100%", padding: "9px 12px", border: `1.5px solid ${C.border}`, borderRadius: 7, fontSize: 13, background: "#fff", marginBottom: 12 }}>
                   <option value="">-- Select JD --</option>
                   {jds.map(jd => (
                     <option key={jd.id} value={jd.id}>{jd.client_name} — {jd.job_title}</option>
@@ -534,7 +995,7 @@ function PageUpload({ setPage, setSelectedId, startAI, stopAI }) {
                 {recruiters.length === 0 ? (
                   <div style={{ marginTop: 4, fontSize: 12, color: C.muted }}>No recruiters found. <span style={{ color: C.accent, cursor: "pointer", fontWeight: 700 }} onClick={() => setPage("jdmanager")}>Add recruiters in JD Manager →</span></div>
                 ) : (
-                  <select value={recruiterName} onChange={e => setRecruiterName(e.target.value)} style={{ display: "block", width: "100%", marginTop: 4, padding: "8px 12px", border: `1px solid ${C.border}`, borderRadius: 6, fontSize: 13, background: C.bg }}>
+                  <select value={recruiterName} onChange={e => setRecruiterName(e.target.value)} style={{ display: "block", width: "100%", marginTop: 4, padding: "8px 12px", border: `1.5px solid ${C.border}`, borderRadius: 7, fontSize: 13, background: "#fff" }}>
                     <option value="">-- Select Recruiter --</option>
                     {recruiters.map(r => <option key={r.id} value={r.name}>{r.name}</option>)}
                   </select>
@@ -550,7 +1011,7 @@ function PageUpload({ setPage, setSelectedId, startAI, stopAI }) {
         </div>
 
         <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 10, padding: 20, marginBottom: 20 }}>
-          <div style={{ fontSize: 14, fontFamily: font.head, fontWeight: 700, marginBottom: 14 }}>After Upload → Cross Check</div>
+          <div style={{ fontSize: 15, fontFamily: font.head, fontWeight: 700, marginBottom: 14 }}>After Upload → Cross Check</div>
           <div style={{ display: "flex", gap: 16, flexWrap: "wrap" }}>
             {[{ key: "image", label: "Profile Image", icon: "🖼" }, { key: "email", label: "Email ID", icon: "📧" }, { key: "mobile", label: "Mobile No", icon: "📱" }, { key: "summary", label: "Summary", icon: "📝" }].map(item => (
               <div key={item.key} style={{ display: "flex", alignItems: "center", gap: 8, background: checked[item.key] ? C.tealSoft : C.bg, border: `1px solid ${checked[item.key] ? C.teal : C.border}`, borderRadius: 8, padding: "10px 16px", transition: "all 0.3s" }}>
@@ -606,16 +1067,16 @@ function PageListing({ setPage, setSelectedId, startAI, stopAI }) {
   return (
     <div>
       <Topbar title="Candidate List" sub="All uploaded resumes and AI analysis status" setPage={setPage} />
-      <div style={{ padding: 28 }}>
+      <div style={{ padding: "28px 32px" }}>
         <div style={{ display: "flex", gap: 8, marginBottom: 20 }}>
           {statuses.map(s => (
             <button key={s} onClick={() => { setFilter(s); setListPage(0); }} style={{ padding: "6px 16px", borderRadius: 20, cursor: "pointer", border: filter === s ? `1px solid ${C.accent}` : `1px solid ${C.border}`, background: filter === s ? C.accentSoft : "transparent", color: filter === s ? C.accent : C.muted, fontSize: 12, fontWeight: 600 }}>{s}</button>
           ))}
         </div>
-        <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 10, overflow: "hidden" }}>
-          <div style={{ display: "grid", gridTemplateColumns: "2fr 1.2fr 1.2fr 0.8fr 0.8fr 1fr", padding: "10px 20px", background: C.bg, borderBottom: `1px solid ${C.border}` }}>
+        <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 10, overflow: "hidden", boxShadow: "0 1px 4px rgba(21,88,203,0.06)" }}>
+          <div style={{ display: "grid", gridTemplateColumns: "2fr 1.2fr 1.2fr 0.8fr 0.8fr 1fr", padding: "10px 20px", background: "#EEF4FF", borderBottom: `1px solid ${C.border}` }}>
             {["Candidate", "Company", "Role", "Tech Score", "Match", "Status"].map(h => (
-              <div key={h} style={{ fontSize: 10, color: C.muted, textTransform: "uppercase", letterSpacing: "0.1em", fontWeight: 700 }}>{h}</div>
+              <div key={h} style={{ fontSize: 10, color: "#6B7A99", textTransform: "uppercase", letterSpacing: "0.1em", fontWeight: 700 }}>{h}</div>
             ))}
           </div>
           {filtered.length === 0 && <div style={{ padding: 28, textAlign: "center", color: C.muted, fontSize: 13 }}>No candidates found.</div>}
@@ -822,9 +1283,9 @@ function PageReview({ setPage, selectedId, startAI, stopAI }) {
   return (
     <div>
       <Topbar title="Review Resume" sub={candidate ? `${candidate.name || "Unknown"} · ${candidate.company_name || ""}` : "Select a candidate"} setPage={setPage} />
-      <div style={{ padding: "20px 28px" }}>
+      <div style={{ padding: "24px 32px" }}>
         <div style={{ marginBottom: 16 }}>
-          <select onChange={e => loadCandidate(Number(e.target.value))} value={candidate?.id || ""} style={{ padding: "8px 12px", border: `1px solid ${C.border}`, borderRadius: 6, fontSize: 13, background: C.card, color: C.text }}>
+          <select onChange={e => loadCandidate(Number(e.target.value))} value={candidate?.id || ""} style={{ padding: "9px 12px", border: `1.5px solid ${C.border}`, borderRadius: 7, fontSize: 13, background: "#fff", color: C.text }}>
             {candidates.map(c => <option key={c.id} value={c.id}>{c.name || "Unknown"} — {c.company_name || "N/A"}</option>)}
           </select>
         </div>
@@ -1011,8 +1472,8 @@ function PageReview({ setPage, selectedId, startAI, stopAI }) {
             })()}
 
             {botOpen && (
-              <div style={{ background: "#1a1a2e", borderRadius: 10, padding: 20, marginBottom: 16 }}>
-                <div style={{ fontSize: 13, fontFamily: font.head, fontWeight: 700, color: "#fff", marginBottom: 12 }}>🤖 Bot Agent — Action Plan</div>
+              <div style={{ background: "#0d1b2e", borderRadius: 10, padding: 20, marginBottom: 16, border: "1px solid rgba(21,88,203,0.3)" }}>
+                <div style={{ fontSize: 14, fontFamily: font.head, fontWeight: 700, color: "#fff", marginBottom: 12 }}>🤖 Bot Agent — Action Plan</div>
                 {(candidate.recommendations || []).length === 0 && <div style={{ color: "rgba(255,255,255,0.5)", fontSize: 12 }}>Run AI Analysis first to see the action plan.</div>}
                 {(candidate.recommendations || []).map((rec, i) => (
                   <div key={i} style={{ background: rec.priority === "MUST HAVE" ? "rgba(220,38,38,0.12)" : "rgba(255,255,255,0.05)", border: rec.priority === "MUST HAVE" ? "1px solid rgba(220,38,38,0.3)" : "none", borderRadius: 8, padding: "12px 14px", marginBottom: 10 }}>
@@ -1213,7 +1674,7 @@ function PageJDAlign({ setPage, selectedId, startAI, stopAI, alignState, setAlig
   return (
     <div>
       <Topbar title="JD Alignment & Resume Editor" sub="Generate and edit JD-aligned resume draft" setPage={setPage} />
-      <div style={{ padding: "20px 28px" }}>
+      <div style={{ padding: "24px 32px" }}>
 
         <div style={{ background: "#fef3cd", border: "1px solid #e9c46a", borderRadius: 10, padding: "12px 20px", marginBottom: 20, display: "flex", alignItems: "center", gap: 12 }}>
           <span style={{ fontSize: 20 }}>⚠️</span>
@@ -1223,7 +1684,7 @@ function PageJDAlign({ setPage, selectedId, startAI, stopAI, alignState, setAlig
         </div>
 
         <div style={{ marginBottom: 16 }}>
-          <select onChange={e => loadCandidate(Number(e.target.value))} value={candidate?.id || ""} style={{ padding: "8px 12px", border: `1px solid ${C.border}`, borderRadius: 6, fontSize: 13, background: C.card, color: C.text }}>
+          <select onChange={e => loadCandidate(Number(e.target.value))} value={candidate?.id || ""} style={{ padding: "9px 12px", border: `1.5px solid ${C.border}`, borderRadius: 7, fontSize: 13, background: "#fff", color: C.text }}>
             {candidates.map(c => <option key={c.id} value={c.id}>{c.name || "Unknown"} — {c.company_name || "N/A"}</option>)}
           </select>
         </div>
@@ -1384,7 +1845,7 @@ function PageJDAlign({ setPage, selectedId, startAI, stopAI, alignState, setAlig
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
 
               {/* ── LEFT: Original Resume — structured preview ── */}
-              <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 10, overflow: "hidden" }}>
+              <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 10, overflow: "hidden", boxShadow: "0 1px 4px rgba(21,88,203,0.06)" }}>
                 <div style={{ padding: "10px 16px", borderBottom: `1px solid ${C.border}`, display: "flex", alignItems: "center", justifyContent: "space-between" }}>
                   <span style={{ fontSize: 11, color: C.muted, fontWeight: 700, letterSpacing: "0.08em" }}>ORIGINAL RESUME</span>
                   <Badge label="Read Only" color={C.muted} bg={C.bg} />
@@ -1484,7 +1945,7 @@ function PagePipeline({ setPage, ollamaOnline, ollamaProvider }) {
   return (
     <div>
       <Topbar title="Pipeline Status" sub="AI pipeline and system status" setPage={setPage} />
-      <div style={{ padding: 28 }}>
+      <div style={{ padding: "28px 32px" }}>
         <div style={{ display: "flex", gap: 16, flexWrap: "wrap", marginBottom: 24 }}>
           <StatCard label="Total Processed" value={candidates.length} color={C.teal} />
           <StatCard label="AI Analyzed" value={candidates.filter(c => c.status === "Bot Analyzed").length} color="#7c6af7" />
@@ -1544,8 +2005,8 @@ function CredentialsSection() {
   };
 
   return (
-    <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 10, overflow: "hidden", marginBottom: 20 }}>
-      <div style={{ padding: "14px 20px", borderBottom: `1px solid ${C.border}`, fontSize: 14, fontFamily: font.head, fontWeight: 700 }}>🔐 Login Credentials</div>
+    <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 10, overflow: "hidden", boxShadow: "0 1px 4px rgba(21,88,203,0.06)", marginBottom: 20 }}>
+      <div style={{ padding: "14px 20px", borderBottom: `1px solid ${C.border}`, fontSize: 15, fontFamily: font.head, fontWeight: 700 }}>🔐 Login Credentials</div>
       <div style={{ padding: 20 }}>
         <div style={{ fontSize: 12, color: C.muted, marginBottom: 16 }}>Change the username and password used to log in to this portal. After saving you will be signed out and need to log in again.</div>
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 14, marginBottom: 16 }}>
@@ -1670,7 +2131,7 @@ function PageSettings({ setPage, onSave }) {
 
   const inp = (val, set, ph, type="text") => (
     <input type={type} value={val} onChange={e => set(e.target.value)} placeholder={ph}
-      style={{ display: "block", width: "100%", marginTop: 4, padding: "9px 12px", border: `1px solid ${C.border}`, borderRadius: 6, fontSize: 13, fontFamily: font.mono, background: C.bg }} />
+      style={{ display: "block", width: "100%", marginTop: 4, padding: "9px 12px", border: `1.5px solid ${C.border}`, borderRadius: 7, fontSize: 13, fontFamily: font.mono, background: "#fff" }} />
   );
 
   const KeyField = ({ value, onChange, masked, show, setShow, placeholder }) => (
@@ -1710,7 +2171,7 @@ function PageSettings({ setPage, onSave }) {
 
         {/* Provider selection */}
         <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 10, marginBottom: 20, overflow: "hidden" }}>
-          <div style={{ padding: "14px 20px", borderBottom: `1px solid ${C.border}`, fontSize: 14, fontFamily: font.head, fontWeight: 700 }}>
+          <div style={{ padding: "14px 20px", borderBottom: `1px solid ${C.border}`, fontSize: 15, fontFamily: font.head, fontWeight: 700 }}>
             🤖 AI Provider
             <span style={{ fontSize: 11, color: C.muted, fontWeight: 400, marginLeft: 10 }}>Click a card to switch — saves instantly</span>
           </div>
@@ -1750,7 +2211,7 @@ function PageSettings({ setPage, onSave }) {
                 <div>
                   <label style={{ fontSize: 11, color: C.muted, textTransform: "uppercase", letterSpacing: "0.08em" }}>Model</label>
                   <select value={groqModel} onChange={e => setGroqModel(e.target.value)}
-                    style={{ display: "block", width: "100%", marginTop: 4, padding: "9px 12px", border: `1px solid ${C.border}`, borderRadius: 6, fontSize: 13, background: C.bg }}>
+                    style={{ display: "block", width: "100%", marginTop: 4, padding: "9px 12px", border: `1.5px solid ${C.border}`, borderRadius: 7, fontSize: 13, background: "#fff" }}>
                     <optgroup label="⭐ Recommended">
                       <option value="meta-llama/llama-4-scout-17b-16e-instruct">Llama 4 Scout 17B — 750 t/s · Best speed+quality · $0.11/1M ⭐</option>
                       <option value="llama-3.3-70b-versatile">Llama 3.3 70B Versatile — 280 t/s · Highest quality · $0.59/1M</option>
@@ -1785,7 +2246,7 @@ function PageSettings({ setPage, onSave }) {
                 <div>
                   <label style={{ fontSize: 11, color: C.muted, textTransform: "uppercase", letterSpacing: "0.08em" }}>Model</label>
                   <select value={nvidiaModel} onChange={e => setNvidiaModel(e.target.value)}
-                    style={{ display: "block", width: "100%", marginTop: 4, padding: "9px 12px", border: `1px solid ${C.border}`, borderRadius: 6, fontSize: 13, background: C.bg }}>
+                    style={{ display: "block", width: "100%", marginTop: 4, padding: "9px 12px", border: `1.5px solid ${C.border}`, borderRadius: 7, fontSize: 13, background: "#fff" }}>
                     <option value="meta/llama-3.1-70b-instruct">meta/llama-3.1-70b-instruct (Recommended)</option>
                     <option value="meta/llama-3.3-70b-instruct">meta/llama-3.3-70b-instruct (Latest Llama)</option>
                     <option value="nvidia/llama-3.1-nemotron-70b-instruct">nvidia/llama-3.1-nemotron-70b-instruct (NVIDIA optimised)</option>
@@ -1810,7 +2271,7 @@ function PageSettings({ setPage, onSave }) {
                 <div>
                   <label style={{ fontSize: 11, color: C.muted, textTransform: "uppercase", letterSpacing: "0.08em" }}>Gemini Model</label>
                   <select value={geminiModel} onChange={e => setGeminiModel(e.target.value)}
-                    style={{ display: "block", width: "100%", marginTop: 4, padding: "9px 12px", border: `1px solid ${C.border}`, borderRadius: 6, fontSize: 13, background: C.bg }}>
+                    style={{ display: "block", width: "100%", marginTop: 4, padding: "9px 12px", border: `1.5px solid ${C.border}`, borderRadius: 7, fontSize: 13, background: "#fff" }}>
                     <option value="gemini-2.0-flash">gemini-2.0-flash (Fastest · Recommended)</option>
                     <option value="gemini-1.5-flash">gemini-1.5-flash (Fast · Good quality)</option>
                     <option value="gemini-1.5-pro">gemini-1.5-pro (Best quality · Slower)</option>
@@ -1847,7 +2308,7 @@ function PageSettings({ setPage, onSave }) {
                 <div>
                   <label style={{ fontSize: 11, color: C.muted, textTransform: "uppercase", letterSpacing: "0.08em" }}>API Version</label>
                   <select value={azureApiVersion} onChange={e => setAzureApiVersion(e.target.value)}
-                    style={{ display: "block", width: "100%", marginTop: 4, padding: "9px 12px", border: `1px solid ${C.border}`, borderRadius: 6, fontSize: 13, background: C.bg }}>
+                    style={{ display: "block", width: "100%", marginTop: 4, padding: "9px 12px", border: `1.5px solid ${C.border}`, borderRadius: 7, fontSize: 13, background: "#fff" }}>
                     <option value="2024-08-01-preview">2024-08-01-preview (Recommended)</option>
                     <option value="2024-05-01-preview">2024-05-01-preview</option>
                     <option value="2023-12-01-preview">2023-12-01-preview</option>
@@ -1875,8 +2336,8 @@ function PageSettings({ setPage, onSave }) {
         )}
 
         {/* Admin Contact Email */}
-        <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 10, overflow: "hidden", marginBottom: 20 }}>
-          <div style={{ padding: "14px 20px", borderBottom: `1px solid ${C.border}`, fontSize: 14, fontFamily: font.head, fontWeight: 700 }}>📧 Dev / Admin Contact</div>
+        <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 10, overflow: "hidden", boxShadow: "0 1px 4px rgba(21,88,203,0.06)", marginBottom: 20 }}>
+          <div style={{ padding: "14px 20px", borderBottom: `1px solid ${C.border}`, fontSize: 15, fontFamily: font.head, fontWeight: 700 }}>📧 Dev / Admin Contact</div>
           <div style={{ padding: 20 }}>
             <div style={{ fontSize: 12, color: C.muted, marginBottom: 8 }}>
               This email is shown to users when a JD domain is not fully supported (e.g. Finance, Legal). They can raise a request to expand coverage.
@@ -1920,10 +2381,10 @@ function PageSettings({ setPage, onSave }) {
         )}
 
         {/* Domain Coverage Dashboard */}
-        <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 10, overflow: "hidden", marginBottom: 20 }}>
+        <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 10, overflow: "hidden", boxShadow: "0 1px 4px rgba(21,88,203,0.06)", marginBottom: 20 }}>
           <div
             onClick={() => { setCoverageOpen(o => !o); if (!coverageOpen && !coverage) loadCoverage(); }}
-            style={{ padding: "14px 20px", borderBottom: coverageOpen ? `1px solid ${C.border}` : "none", fontSize: 14, fontFamily: font.head, fontWeight: 700, cursor: "pointer", display: "flex", justifyContent: "space-between", alignItems: "center" }}
+            style={{ padding: "14px 20px", borderBottom: coverageOpen ? `1px solid ${C.border}` : "none", fontSize: 15, fontFamily: font.head, fontWeight: 700, cursor: "pointer", display: "flex", justifyContent: "space-between", alignItems: "center" }}
           >
             <span>📊 Domain Coverage Dashboard</span>
             <span style={{ fontSize: 12, color: C.muted }}>
@@ -1972,8 +2433,8 @@ function PageSettings({ setPage, onSave }) {
         <CredentialsSection />
 
         {/* System Info */}
-        <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 10, overflow: "hidden" }}>
-          <div style={{ padding: "14px 20px", borderBottom: `1px solid ${C.border}`, fontSize: 14, fontFamily: font.head, fontWeight: 700 }}>🗄 System Info</div>
+        <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 10, overflow: "hidden", boxShadow: "0 1px 4px rgba(21,88,203,0.06)" }}>
+          <div style={{ padding: "14px 20px", borderBottom: `1px solid ${C.border}`, fontSize: 15, fontFamily: font.head, fontWeight: 700 }}>🗄 System Info</div>
           <div style={{ padding: 20, display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14 }}>
             {[["Backend", "FastAPI · http://127.0.0.1:8000"], ["Database", "SQLite · ./database/cms.db"], ["Upload Folder", "./uploads"], ["Word Generator", "python-docx"]].map(([k, v]) => (
               <div key={k}>
@@ -2068,16 +2529,16 @@ function PageJDManager({ setPage }) {
       <div style={{ padding: 28, maxWidth: 900 }}>
 
         {/* Create new JD */}
-        <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 10, padding: 24, marginBottom: 24 }}>
-          <div style={{ fontSize: 14, fontFamily: font.head, fontWeight: 700, marginBottom: 16 }}>➕ Create New Job Description</div>
+        <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 10, padding: 24, marginBottom: 24, boxShadow: "0 1px 4px rgba(21,88,203,0.06)" }}>
+          <div style={{ fontSize: 15, fontFamily: font.head, fontWeight: 700, marginBottom: 16 }}>➕ Create New Job Description</div>
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14, marginBottom: 14 }}>
             <div>
               <label style={{ fontSize: 11, color: C.muted, textTransform: "uppercase", letterSpacing: "0.08em" }}>Company / Client Name</label>
-              <input value={clientName} onChange={e => setClientName(e.target.value)} placeholder="e.g. Infosys, TCS" style={{ display: "block", width: "100%", marginTop: 4, padding: "8px 12px", border: `1px solid ${C.border}`, borderRadius: 6, fontSize: 13, background: C.bg }} />
+              <input value={clientName} onChange={e => setClientName(e.target.value)} placeholder="e.g. Infosys, TCS" style={{ display: "block", width: "100%", marginTop: 4, padding: "8px 12px", border: `1.5px solid ${C.border}`, borderRadius: 7, fontSize: 13, background: "#fff" }} />
             </div>
             <div>
               <label style={{ fontSize: 11, color: C.muted, textTransform: "uppercase", letterSpacing: "0.08em" }}>Job Title / Role</label>
-              <input value={jobTitle} onChange={e => setJobTitle(e.target.value)} placeholder="e.g. AI Prompt Engineer" style={{ display: "block", width: "100%", marginTop: 4, padding: "8px 12px", border: `1px solid ${C.border}`, borderRadius: 6, fontSize: 13, background: C.bg }} />
+              <input value={jobTitle} onChange={e => setJobTitle(e.target.value)} placeholder="e.g. AI Prompt Engineer" style={{ display: "block", width: "100%", marginTop: 4, padding: "8px 12px", border: `1.5px solid ${C.border}`, borderRadius: 7, fontSize: 13, background: "#fff" }} />
             </div>
           </div>
           <div style={{ marginBottom: 16 }}>
@@ -2088,9 +2549,9 @@ function PageJDManager({ setPage }) {
         </div>
 
         {/* Existing JDs */}
-        <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 10, overflow: "hidden" }}>
+        <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 10, overflow: "hidden", boxShadow: "0 1px 4px rgba(21,88,203,0.06)" }}>
           <div style={{ padding: "14px 20px", borderBottom: `1px solid ${C.border}`, display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-            <span style={{ fontSize: 14, fontFamily: font.head, fontWeight: 700 }}>Saved Job Descriptions ({jds.length})</span>
+            <span style={{ fontSize: 15, fontFamily: font.head, fontWeight: 700 }}>Saved Job Descriptions ({jds.length})</span>
             {jds.length > JD_PER_PAGE && (
               <span style={{ fontSize: 12, color: C.muted }}>
                 Showing {jdPage * JD_PER_PAGE + 1}–{Math.min((jdPage + 1) * JD_PER_PAGE, jds.length)} of {jds.length}
@@ -2166,9 +2627,9 @@ function PageJDManager({ setPage }) {
 
         {/* Manage Recruiters */}
         <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 10, padding: 24, marginTop: 24 }}>
-          <div style={{ fontSize: 14, fontFamily: font.head, fontWeight: 700, marginBottom: 16 }}>👤 Manage Recruiters</div>
+          <div style={{ fontSize: 15, fontFamily: font.head, fontWeight: 700, marginBottom: 16 }}>👤 Manage Recruiters</div>
           <div style={{ display: "flex", gap: 10, marginBottom: 16 }}>
-            <input value={newRecruiter} onChange={e => setNewRecruiter(e.target.value)} onKeyDown={e => e.key === "Enter" && handleAddRecruiter()} placeholder="Recruiter name (e.g. Priya Sharma)" style={{ flex: 1, padding: "8px 12px", border: `1px solid ${C.border}`, borderRadius: 6, fontSize: 13, background: C.bg }} />
+            <input value={newRecruiter} onChange={e => setNewRecruiter(e.target.value)} onKeyDown={e => e.key === "Enter" && handleAddRecruiter()} placeholder="Recruiter name (e.g. Priya Sharma)" style={{ flex: 1, padding: "8px 12px", border: `1.5px solid ${C.border}`, borderRadius: 7, fontSize: 13, background: "#fff" }} />
             <Btn onClick={handleAddRecruiter} disabled={savingR}>{savingR ? "Adding..." : "+ Add"}</Btn>
           </div>
           {recruiters.length === 0 ? (
@@ -2224,7 +2685,7 @@ function PageJDAlignedList({ setPage, setSelectedId }) {
   return (
     <div>
       <Topbar title="JD-Aligned Resumes" sub="Candidates with JD-aligned resume drafts" setPage={setPage} />
-      <div style={{ padding: 28 }}>
+      <div style={{ padding: "28px 32px" }}>
 
         <div style={{ display: "flex", gap: 16, flexWrap: "wrap", marginBottom: 20 }}>
           <StatCard label="Total Aligned" value={candidates.length} color={C.teal} />
@@ -2327,47 +2788,47 @@ function App() {
   const [aiTask, setAiTask] = useState("");
   const [alignState, setAlignState] = useState(null);
 
-  // Auth state
+  // Auth
   const [authReady, setAuthReady] = useState(false);
   const [token, setToken] = useState(null);
   const [loggedUser, setLoggedUser] = useState("");
+
+  // AI Panel + Spotlight
+  const [aiPanelOpen, setAiPanelOpen] = useState(false);
+  const [aiPanelWidth, setAiPanelWidth] = useState(() => parseInt(localStorage.getItem("ai_panel_width") || "330"));
+  const [spotlightOpen, setSpotlightOpen] = useState(false);
+  const [allCandidates, setAllCandidates] = useState([]);
+
+  useEffect(() => { if (token) api.getCandidates().then(setAllCandidates); }, [token]);
+
+  const handlePanelWidth = (w) => { setAiPanelWidth(w); localStorage.setItem("ai_panel_width", w); };
+
+  // Ctrl+K global shortcut
+  useEffect(() => {
+    const h = (e) => { if ((e.ctrlKey || e.metaKey) && e.key === "k") { e.preventDefault(); setSpotlightOpen(s => !s); } };
+    window.addEventListener("keydown", h);
+    return () => window.removeEventListener("keydown", h);
+  }, []);
 
   useEffect(() => {
     const storedToken = localStorage.getItem("cms_token");
     const storedUser  = localStorage.getItem("cms_username") || "";
     if (storedToken) {
       api.verifyToken(storedToken).then(res => {
-        if (res.valid) {
-          setToken(storedToken);
-          setLoggedUser(res.username || storedUser);
-        } else {
-          localStorage.removeItem("cms_token");
-          localStorage.removeItem("cms_username");
-        }
+        if (res.valid) { setToken(storedToken); setLoggedUser(res.username || storedUser); }
+        else { localStorage.removeItem("cms_token"); localStorage.removeItem("cms_username"); }
         setAuthReady(true);
       });
-    } else {
-      setAuthReady(true);
-    }
+    } else { setAuthReady(true); }
   }, []);
 
-  const handleLogin = (tok, uname) => {
-    setToken(tok);
-    setLoggedUser(uname);
-  };
-
+  const handleLogin  = (tok, uname) => { setToken(tok); setLoggedUser(uname); };
   const handleLogout = () => {
-    localStorage.removeItem("cms_token");
-    localStorage.removeItem("cms_username");
-    setToken(null);
-    setLoggedUser("");
-    setPage("dashboard");
+    localStorage.removeItem("cms_token"); localStorage.removeItem("cms_username");
+    setToken(null); setLoggedUser(""); setPage("dashboard");
   };
 
-  const refreshStatus = () => api.ollamaStatus().then(s => {
-    setOllamaOnline(s.online);
-    setOllamaProvider(s.provider || "ollama");
-  });
+  const refreshStatus = () => api.ollamaStatus().then(s => { setOllamaOnline(s.online); setOllamaProvider(s.provider || "ollama"); });
 
   useEffect(() => {
     if (!token) return;
@@ -2376,11 +2837,11 @@ function App() {
     return () => clearInterval(interval);
   }, [token]);
 
-  const startAI  = (task) => { setAiRunning(true);  setAiTask(task); };
-  const stopAI   = ()     => { setAiRunning(false); setAiTask("");   };
+  const startAI = (task) => { setAiRunning(true);  setAiTask(task); };
+  const stopAI  = ()     => { setAiRunning(false); setAiTask(""); };
 
   if (!authReady) return (
-    <div style={{ minHeight: "100vh", background: "#FFFFFF", display: "flex", alignItems: "center", justifyContent: "center" }}>
+    <div style={{ minHeight: "100vh", background: "#F5F8FF", display: "flex", alignItems: "center", justifyContent: "center" }}>
       <div style={{ color: C.muted, fontSize: 14 }}>Loading…</div>
     </div>
   );
@@ -2388,31 +2849,43 @@ function App() {
   if (!token) return <PageLogin onLogin={handleLogin} />;
 
   const pages = {
-    dashboard: <PageDashboard setPage={setPage} />,
-    jdmanager: <PageJDManager setPage={setPage} />,
-    upload: <PageUpload setPage={setPage} setSelectedId={setSelectedId} startAI={startAI} stopAI={stopAI} />,
-    listing: <PageListing setPage={setPage} setSelectedId={setSelectedId} startAI={startAI} stopAI={stopAI} />,
-    review: <PageReview setPage={setPage} selectedId={selectedId} startAI={startAI} stopAI={stopAI} />,
-    jdalign: <PageJDAlign setPage={setPage} selectedId={selectedId} startAI={startAI} stopAI={stopAI} alignState={alignState} setAlignState={setAlignState} />,
+    dashboard:   <PageDashboard setPage={setPage} />,
+    jdmanager:   <PageJDManager setPage={setPage} />,
+    upload:      <PageUpload setPage={setPage} setSelectedId={setSelectedId} startAI={startAI} stopAI={stopAI} />,
+    listing:     <PageListing setPage={setPage} setSelectedId={setSelectedId} startAI={startAI} stopAI={stopAI} />,
+    review:      <PageReview setPage={setPage} selectedId={selectedId} startAI={startAI} stopAI={stopAI} />,
+    jdalign:     <PageJDAlign setPage={setPage} selectedId={selectedId} startAI={startAI} stopAI={stopAI} alignState={alignState} setAlignState={setAlignState} />,
     jdalignlist: <PageJDAlignedList setPage={setPage} setSelectedId={setSelectedId} />,
-    pipeline: <PagePipeline setPage={setPage} ollamaOnline={ollamaOnline} ollamaProvider={ollamaProvider} />,
-    settings: <PageSettings setPage={setPage} onSave={refreshStatus} />,
+    pipeline:    <PagePipeline setPage={setPage} ollamaOnline={ollamaOnline} ollamaProvider={ollamaProvider} />,
+    settings:    <PageSettings setPage={setPage} onSave={refreshStatus} />,
   };
 
+  const aiCtxValue = {
+    onAIToggle: () => setAiPanelOpen(o => !o),
+    aiOpen: aiPanelOpen,
+    onSpotlight: () => setSpotlightOpen(true),
+  };
+
+  const rPad = aiPanelOpen ? aiPanelWidth : 0;
+
   return (
-    <div style={{ display: "flex", background: C.bg, minHeight: "100vh" }}>
-      <Sidebar active={page} setPage={setPage} ollamaOnline={ollamaOnline} ollamaProvider={ollamaProvider} username={loggedUser} onLogout={handleLogout} />
-      <div style={{ marginLeft: 220, flex: 1, minHeight: "100vh", overflow: "auto", paddingBottom: aiRunning ? 52 : 0 }}>
-        {pages[page]}
-      </div>
-      {aiRunning && (
-        <div style={{ position: "fixed", bottom: 0, left: 220, right: 0, zIndex: 9999, background: "#0f2027", color: "#fff", padding: "10px 24px", display: "flex", alignItems: "center", gap: 14, borderTop: "2px solid #e63946", fontSize: 13 }}>
-          <span style={{ fontSize: 18, animation: "spin 1.2s linear infinite", display: "inline-block" }}>⏳</span>
-          <span><strong>AI is working:</strong> {aiTask}</span>
-          <span style={{ color: "rgba(255,255,255,0.45)", fontSize: 11 }}>— Navigate freely, results will be here when you return</span>
+    <AICtx.Provider value={aiCtxValue}>
+      <div style={{ display: "flex", background: C.bg, minHeight: "100vh" }}>
+        <Sidebar active={page} setPage={setPage} ollamaOnline={ollamaOnline} ollamaProvider={ollamaProvider} username={loggedUser} onLogout={handleLogout} />
+        <div style={{ marginLeft: 220, marginRight: rPad, flex: 1, minHeight: "100vh", overflow: "auto", paddingBottom: aiRunning ? 52 : 0, transition: "margin-right 0.28s cubic-bezier(0.4,0,0.2,1)" }}>
+          {pages[page]}
         </div>
-      )}
-    </div>
+        <AIPanel open={aiPanelOpen} width={aiPanelWidth} onWidthChange={handlePanelWidth} onClose={() => setAiPanelOpen(false)} page={page} candidateId={selectedId} />
+        <Spotlight open={spotlightOpen} onClose={() => setSpotlightOpen(false)} setPage={setPage} setSelectedId={setSelectedId} candidates={allCandidates} />
+        {aiRunning && (
+          <div style={{ position: "fixed", bottom: 0, left: 220, right: rPad, zIndex: 9999, background: "#0d1b2e", color: "#fff", padding: "10px 24px", display: "flex", alignItems: "center", gap: 14, borderTop: "2px solid #1558CB", fontSize: 13, transition: "right 0.28s cubic-bezier(0.4,0,0.2,1)" }}>
+            <span style={{ fontSize: 18, animation: "spin 1.2s linear infinite", display: "inline-block" }}>⏳</span>
+            <span><strong>AI is working:</strong> {aiTask}</span>
+            <span style={{ color: "rgba(255,255,255,0.45)", fontSize: 11 }}>— Navigate freely, results will be here when you return</span>
+          </div>
+        )}
+      </div>
+    </AICtx.Provider>
   );
 }
 

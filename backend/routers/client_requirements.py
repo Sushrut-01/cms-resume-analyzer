@@ -3,6 +3,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
 from database import get_db
+from deps import get_current_user, require_admin
 from models.client_requirement import ClientRequirement
 from schemas.client_requirement import ClientRequirementOut, ClientRequirementCreate
 
@@ -14,7 +15,7 @@ router = APIRouter(
 
 
 @router.get("/", response_model=List[ClientRequirementOut])
-def list_jds(skip: int = 0, limit: int = 100, db: Session = Depends(get_db)):
+def list_jds(skip: int = 0, limit: int = 100, db: Session = Depends(get_db), _=Depends(get_current_user)):
     return (
         db.query(ClientRequirement)
         .filter(ClientRequirement.active == True)
@@ -26,7 +27,7 @@ def list_jds(skip: int = 0, limit: int = 100, db: Session = Depends(get_db)):
 
 
 @router.post("/", response_model=ClientRequirementOut)
-def create_jd(payload: ClientRequirementCreate, db: Session = Depends(get_db)):
+def create_jd(payload: ClientRequirementCreate, db: Session = Depends(get_db), _=Depends(require_admin)):
     jd = ClientRequirement(
         client_name=payload.client_name,
         job_title=payload.job_title,
@@ -40,7 +41,7 @@ def create_jd(payload: ClientRequirementCreate, db: Session = Depends(get_db)):
 
 
 @router.put("/{jd_id}", response_model=ClientRequirementOut)
-def update_jd(jd_id: int, payload: ClientRequirementCreate, db: Session = Depends(get_db)):
+def update_jd(jd_id: int, payload: ClientRequirementCreate, db: Session = Depends(get_db), _=Depends(require_admin)):
     jd = db.query(ClientRequirement).filter(ClientRequirement.id == jd_id).first()
     if not jd:
         raise HTTPException(status_code=404, detail="JD not found")
@@ -53,7 +54,7 @@ def update_jd(jd_id: int, payload: ClientRequirementCreate, db: Session = Depend
 
 
 @router.delete("/{jd_id}")
-def delete_jd(jd_id: int, db: Session = Depends(get_db)):
+def delete_jd(jd_id: int, db: Session = Depends(get_db), _=Depends(require_admin)):
     jd = db.query(ClientRequirement).filter(ClientRequirement.id == jd_id).first()
     if not jd:
         raise HTTPException(status_code=404, detail="JD not found")

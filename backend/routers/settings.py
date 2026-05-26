@@ -1,6 +1,7 @@
-from fastapi import APIRouter
+from fastapi import APIRouter, Depends
 import requests
 import ai_config
+from deps import get_current_user, require_admin
 from services.llm_service import get_domain_coverage
 from services.semantic_service import is_available as sem_available, get_tier as sem_tier
 
@@ -8,7 +9,7 @@ router = APIRouter(prefix="/settings", tags=["Settings"])
 
 
 @router.get("/")
-def get_settings():
+def get_settings(_=Depends(require_admin)):
     cfg = ai_config.load()
     for field, alias in [
         ("gemini_api_key", "gemini_api_key_masked"),
@@ -23,7 +24,7 @@ def get_settings():
 
 
 @router.post("/")
-def update_settings(payload: dict):
+def update_settings(payload: dict, _=Depends(require_admin)):
     allowed = {
         "provider", "ollama_url", "ollama_model",
         "gemini_api_key", "gemini_model",
@@ -38,7 +39,7 @@ def update_settings(payload: dict):
 
 
 @router.post("/test")
-def test_connection():
+def test_connection(_=Depends(require_admin)):
     cfg = ai_config.load()
     provider = cfg.get("provider", "ollama")
 
@@ -126,19 +127,19 @@ def test_connection():
 
 
 @router.get("/domain-coverage")
-def domain_coverage():
+def domain_coverage(_=Depends(get_current_user)):
     """Returns current domain coverage — updates automatically as new domains are added to code."""
     return {"success": True, "data": get_domain_coverage()}
 
 
 @router.get("/admin-contact")
-def admin_contact():
+def admin_contact(_=Depends(get_current_user)):
     cfg = ai_config.load()
     return {"success": True, "email": cfg.get("admin_contact_email", "")}
 
 
 @router.get("/semantic-status")
-def semantic_status():
+def semantic_status(_=Depends(get_current_user)):
     available = sem_available()
     tier      = sem_tier()
     tier_labels = {

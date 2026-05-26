@@ -14,6 +14,7 @@ import shutil
 import json
 
 from database import get_db
+from deps import get_current_user
 from models.candidate import Candidate
 from models.client_requirement import ClientRequirement
 from models.resume_version import ResumeVersion
@@ -37,7 +38,7 @@ UPLOAD_FOLDER = os.getenv("UPLOAD_FOLDER", "./uploads")
 
 # ── GET all candidates ────────────────────────────────────────────────────────
 @router.get("/")
-def get_all_candidates(db: Session = Depends(get_db)):
+def get_all_candidates(db: Session = Depends(get_db), _=Depends(get_current_user)):
     candidates = (
         db.query(Candidate)
         .order_by(Candidate.created_at.desc())
@@ -48,7 +49,7 @@ def get_all_candidates(db: Session = Depends(get_db)):
 
 # ── GET single candidate ──────────────────────────────────────────────────────
 @router.get("/{candidate_id}")
-def get_candidate(candidate_id: int, db: Session = Depends(get_db)):
+def get_candidate(candidate_id: int, db: Session = Depends(get_db), _=Depends(get_current_user)):
     c = db.query(Candidate).filter(Candidate.id == candidate_id).first()
     if not c:
         raise HTTPException(status_code=404, detail="Candidate not found")
@@ -63,6 +64,7 @@ async def upload_resume(
     client_requirement_id: int = Form(...),
     recruiter_name: str = Form(""),
     db: Session = Depends(get_db),
+    _=Depends(get_current_user),
 ):
     os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 
@@ -144,7 +146,7 @@ async def upload_resume(
 
 # ── ANALYZE with AI (JD enforced) ─────────────────────────────────────────────
 @router.post("/{candidate_id}/analyze")
-def analyze_candidate(candidate_id: int, db: Session = Depends(get_db)):
+def analyze_candidate(candidate_id: int, db: Session = Depends(get_db), _=Depends(get_current_user)):
     c = db.query(Candidate).filter(Candidate.id == candidate_id).first()
     if not c:
         raise HTTPException(status_code=404, detail="Candidate not found")
@@ -224,7 +226,7 @@ def analyze_candidate(candidate_id: int, db: Session = Depends(get_db)):
 
 # ── JD‑Aligned Resume Draft ───────────────────────────────────────────────────
 @router.post("/{candidate_id}/generate-jd-aligned-resume")
-def generate_jd_aligned(candidate_id: int, db: Session = Depends(get_db)):
+def generate_jd_aligned(candidate_id: int, db: Session = Depends(get_db), _=Depends(get_current_user)):
     c = db.query(Candidate).filter(Candidate.id == candidate_id).first()
     if not c:
         raise HTTPException(status_code=404, detail="Candidate not found")
@@ -306,7 +308,7 @@ def generate_jd_aligned(candidate_id: int, db: Session = Depends(get_db)):
 
 # ── DOWNLOAD resume ───────────────────────────────────────────────────────────
 @router.get("/{candidate_id}/download-resume")
-def download_resume(candidate_id: int, db: Session = Depends(get_db)):
+def download_resume(candidate_id: int, db: Session = Depends(get_db), _=Depends(get_current_user)):
     c = db.query(Candidate).filter(Candidate.id == candidate_id).first()
     if not c:
         raise HTTPException(status_code=404, detail="Candidate not found")
@@ -352,8 +354,24 @@ def download_resume(candidate_id: int, db: Session = Depends(get_db)):
 
 
 # ── Approve candidate ─────────────────────────────────────────────────────────
+@router.delete("/{candidate_id}")
+def delete_candidate(candidate_id: int, db: Session = Depends(get_db), _=Depends(get_current_user)):
+    c = db.query(Candidate).filter(Candidate.id == candidate_id).first()
+    if not c:
+        raise HTTPException(status_code=404, detail="Candidate not found")
+    # Remove uploaded file if it exists
+    if c.resume_path and os.path.exists(c.resume_path):
+        try:
+            os.remove(c.resume_path)
+        except OSError:
+            pass
+    db.delete(c)
+    db.commit()
+    return {"success": True, "message": f"Candidate {candidate_id} deleted"}
+
+
 @router.put("/{candidate_id}/approve")
-def approve_candidate(candidate_id: int, db: Session = Depends(get_db)):
+def approve_candidate(candidate_id: int, db: Session = Depends(get_db), _=Depends(get_current_user)):
     c = db.query(Candidate).filter(Candidate.id == candidate_id).first()
     if not c:
         raise HTTPException(status_code=404, detail="Candidate not found")
@@ -368,6 +386,7 @@ async def update_resume(
     candidate_id: int,
     improved_text: str = Form(...),
     db: Session = Depends(get_db),
+    _=Depends(get_current_user),
 ):
     c = db.query(Candidate).filter(Candidate.id == candidate_id).first()
     if not c:
@@ -383,6 +402,7 @@ async def save_manual_resume(
     candidate_id: int,
     manual_text: str = Form(...),
     db: Session = Depends(get_db),
+    _=Depends(get_current_user),
 ):
     c = db.query(Candidate).filter(Candidate.id == candidate_id).first()
     if not c:
@@ -395,7 +415,7 @@ async def save_manual_resume(
 
 # ── Role compatibility pre-check (called before JD alignment) ────────────────
 @router.get("/{candidate_id}/role-compatibility")
-def role_compatibility_check(candidate_id: int, db: Session = Depends(get_db)):
+def role_compatibility_check(candidate_id: int, db: Session = Depends(get_db), _=Depends(get_current_user)):
     c = db.query(Candidate).filter(Candidate.id == candidate_id).first()
     if not c:
         raise HTTPException(status_code=404, detail="Candidate not found")
@@ -424,7 +444,7 @@ def role_compatibility_check(candidate_id: int, db: Session = Depends(get_db)):
 
 # ── JD-Aligned approved candidates list ──────────────────────────────────────
 @router.get("/list/jd-aligned")
-def list_jd_aligned(db: Session = Depends(get_db)):
+def list_jd_aligned(db: Session = Depends(get_db), _=Depends(get_current_user)):
     candidates = (
         db.query(Candidate)
         .filter(Candidate.resume_version_type.in_(["AI_SIMULATED", "JD_ALIGNED"]))

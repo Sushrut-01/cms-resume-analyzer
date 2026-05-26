@@ -38,6 +38,10 @@ backend/services/model_cache/
 # ── Claude Code project memory (local only) ────────────────────────────────
 .claude/
 
+# ── Runtime logs (generated, not source) ───────────────────────────────────
+backend/audit.log
+backend/audit.log.*
+
 # ── OS / editor ────────────────────────────────────────────────────────────
 .DS_Store
 Thumbs.db

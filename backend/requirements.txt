@@ -20,6 +20,11 @@ requests>=2.31.0
 # Environment variables
 python-dotenv>=1.0.0
 
+# Auth — JWT tokens and password hashing
+python-jose[cryptography]>=3.3.0
+passlib[bcrypt]>=1.7.4
+bcrypt==4.0.1          # passlib 1.7.4 is incompatible with bcrypt 5.x
+
 # Semantic similarity — hybrid CV alignment (Phase 1)
 # Tier 1 (best quality): neural embeddings, ~22 MB model download on first use
 sentence-transformers>=2.7.0

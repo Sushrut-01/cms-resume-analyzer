@@ -761,6 +761,14 @@ _JUNK_PHRASES = [
     r"^interests?\s*:?\s*$",
 ]
 
+def _strip_contact_pii(text: str) -> str:
+    """Remove email, phone, and LinkedIn URL lines from text before sending to AI."""
+    text = re.sub(r'\b[A-Za-z0-9._%+\-]+@[A-Za-z0-9.\-]+\.[A-Za-z]{2,}\b', '[email]', text)
+    text = re.sub(r'(\+?\d[\d\s\-().]{7,}\d)', '[phone]', text)
+    text = re.sub(r'(https?://)?(www\.)?linkedin\.com/in/[^\s,|>]+', '[linkedin]', text, flags=re.I)
+    return text
+
+
 def clean_resume_text(text: str) -> str:
     """Strip boilerplate/junk phrases from resume text before any processing.
     Removes: responsibility headers, personal details, declarations, etc."""
@@ -2194,6 +2202,7 @@ def _build_structured_draft(s: dict, new_summary: str) -> str:
 
 def generate_aligned_resume(resume_text: str, jd_text: str):
     try:
+        resume_text = _strip_contact_pii(resume_text)
         resume_text = clean_resume_text(resume_text)
         sections = _parse_sections_simple(resume_text)
 
