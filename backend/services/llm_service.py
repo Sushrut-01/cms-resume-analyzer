@@ -1,3 +1,49 @@
+# =============================================================================
+# services/llm_service.py — Core AI Logic (Resume Analysis & Rewriting)
+#
+# This is the most important service file. It handles all communication with
+# the AI provider and all resume processing logic.
+#
+# Key responsibilities:
+#
+#   1. _call_llm(prompt) — unified AI caller
+#      Routes to whichever provider is configured (Ollama/Azure/Groq/Gemini/NVIDIA).
+#      All AI calls go through this single function.
+#
+#   2. _strip_contact_pii(text) — PII removal (CRITICAL for compliance)
+#      Called before EVERY AI request. Removes:
+#        - Email addresses → [email]
+#        - Phone numbers   → [phone]
+#        - LinkedIn URLs   → [linkedin]
+#        - GitHub URLs     → [github]
+#        - Street addresses → [address]
+#        - Candidate name (first capitalised line) → [name]
+#      This ensures no personal identifiable information is sent to external AI.
+#
+#   3. analyze_resume(resume_text, jd_text) — main analysis function
+#      - Strips PII from resume text
+#      - Scores the resume against the JD (keyword match + semantic score)
+#      - Identifies gaps, strengths, must-have missing, nice-to-have missing
+#      - Generates an AI-rewritten improved resume
+#      - Returns all results as a structured dict
+#
+#   4. generate_aligned_resume(resume_text, jd_text) — JD alignment
+#      - Strips PII from resume text
+#      - Rewrites the resume to better match the JD
+#      - Adds missing skills and rephrases existing bullets
+#      - Returns before/after scores and alignment history
+#
+#   5. check_ollama_status() / get_provider_status() — health checks
+#      Used by the UI to show whether the AI is online/offline.
+#
+# Outbound network calls:
+#   - Ollama: localhost only (no internet)
+#   - Azure OpenAI: azure_endpoint from ai_config.json (Kforce's own Azure)
+#   - Groq: api.groq.com (external cloud, sends prompt text only — no raw resume PII after strip)
+#   - Gemini: generativelanguage.googleapis.com (external cloud, same PII strip applies)
+#   - NVIDIA NIM: integrate.api.nvidia.com (external cloud, same PII strip applies)
+# =============================================================================
+
 import requests
 import os
 import re

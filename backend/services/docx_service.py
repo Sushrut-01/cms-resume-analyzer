@@ -1,3 +1,28 @@
+# =============================================================================
+# services/docx_service.py — Word Document (.docx) Generator
+#
+# Generates formatted Microsoft Word resume files for download.
+# Called from candidates.py GET /candidates/{id}/download-resume.
+#
+# Two generation paths:
+#
+#   1. generate_word_from_structured(data: dict)
+#      Used when the AI returned structured JSON (Groq/Gemini/Azure providers).
+#      Data is already parsed into sections (name, skills, experience, etc.)
+#      → Produces cleaner, better-formatted output.
+#
+#   2. generate_word_resume(resume_text: str)
+#      Used as fallback for Ollama or older records without structured data.
+#      Parses the plain text resume into sections using parse_resume_sections().
+#      → Less precise but handles any text format.
+#
+# Output format: .docx binary bytes returned directly as an HTTP response.
+# No file is written to disk — the document is generated in memory.
+#
+# Formatting: Navy/teal color scheme matching Kforce brand, Times New Roman,
+# sections separated by teal divider lines (━━━━━━━).
+# =============================================================================
+
 from docx import Document
 from docx.shared import Pt, RGBColor, Cm, Inches
 from docx.enum.text import WD_ALIGN_PARAGRAPH

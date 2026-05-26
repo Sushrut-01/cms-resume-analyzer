@@ -1,32 +1,59 @@
+# =============================================================================
+# database.py — Database Connection & Initialization
+#
+# Handles everything related to the database:
+#   1. Connecting to SQLite (development) or PostgreSQL (production)
+#   2. Providing a database session to each API request
+#   3. Running schema migrations safely (add new columns without data loss)
+#   4. Seeding default roles and the first admin account
+#
+# How to switch from SQLite to PostgreSQL:
+#   Set DATABASE_URL in .env:
+#   DATABASE_URL=postgresql://cms_user:password@localhost:5432/cms_db
+#   Leave DATABASE_URL unset to use SQLite (file-based, no server needed).
+# =============================================================================
+
 from sqlalchemy import create_engine, text
 from sqlalchemy.orm import sessionmaker, declarative_base
 import pathlib
 import os
 
-# ── Database URL ──────────────────────────────────────────────────────────────
-# Set DATABASE_URL env var on the server to switch to PostgreSQL:
-#   postgresql://cms_user:password@localhost:5432/cms_db
-# Leave unset to use SQLite locally (development / single laptop).
-
+# -----------------------------------------------------------------------------
+# Database Connection
+# SQLite: stored at database/cms.db relative to the project root
+# PostgreSQL: connects to the server specified in DATABASE_URL
+# -----------------------------------------------------------------------------
 DATABASE_URL = os.getenv("DATABASE_URL")
 
 if DATABASE_URL:
-    # PostgreSQL — for production server with multiple users
-    print(f"Using PostgreSQL: {DATABASE_URL.split('@')[-1]}")  # hide credentials
+    # PostgreSQL — for production server with multiple concurrent users
+    # pool_size=10: keep 10 persistent connections open (reused across requests)
+    # max_overflow=20: allow up to 20 extra connections during traffic spikes
+    print(f"Using PostgreSQL: {DATABASE_URL.split('@')[-1]}")  # hide credentials in logs
     engine = create_engine(DATABASE_URL, pool_size=10, max_overflow=20)
 else:
-    # SQLite — for local development
+    # SQLite — simple file database for local development or single-laptop use
+    # check_same_thread=False: allows the same connection to be used across threads
     BASE_DIR = pathlib.Path(__file__).resolve().parent.parent
-    DB_PATH = BASE_DIR / "database" / "cms.db"
+    DB_PATH  = BASE_DIR / "database" / "cms.db"
     DB_PATH.parent.mkdir(exist_ok=True)
     DATABASE_URL = f"sqlite:///{DB_PATH}"
     print(f"Using SQLite: {DB_PATH}")
     engine = create_engine(DATABASE_URL, connect_args={"check_same_thread": False})
 
+# Session factory — creates a new DB session for each API request
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 
+# Base class — all SQLAlchemy models (User, Candidate, etc.) inherit from this
 Base = declarative_base()
 
+
+# -----------------------------------------------------------------------------
+# get_db — Database Session Provider
+# Used by FastAPI's dependency injection (Depends(get_db)) in every router.
+# Opens a session at the start of each request and closes it when done.
+# The "finally" block ensures the session is always closed, even on errors.
+# -----------------------------------------------------------------------------
 def get_db():
     db = SessionLocal()
     try:
@@ -35,9 +62,18 @@ def get_db():
         db.close()
 
 
+# -----------------------------------------------------------------------------
+# run_migrations — Safe Schema Updates
+#
+# Adds new columns to existing tables without dropping or recreating them.
+# This preserves all existing data when the application is updated.
+# Safe to run on every startup — silently ignores columns that already exist.
+#
+# Why this is needed: SQLAlchemy's create_all() only creates NEW tables.
+# It does not modify existing tables. So when we add a new field to a model,
+# we also add it here to ensure existing databases get the new column.
+# -----------------------------------------------------------------------------
 def run_migrations():
-    """Safely add new columns to existing tables without wiping data.
-    Safe to call on every startup — silently skips already-existing columns."""
     new_columns = [
         "ALTER TABLE candidates ADD COLUMN must_have_missing    TEXT DEFAULT '[]'",
         "ALTER TABLE candidates ADD COLUMN nice_to_have_missing TEXT DEFAULT '[]'",
@@ -63,6 +99,15 @@ def run_migrations():
                 pass  # column already exists — safe to ignore
 
 
+# -----------------------------------------------------------------------------
+# Role & Permission Definitions
+# These are the three built-in system roles.
+# They are created once on first startup and cannot be deleted.
+#
+# super_admin: full access to everything including role management
+# admin:       full access except role management
+# recruiter:   can upload, analyze, align, and download resumes only
+# -----------------------------------------------------------------------------
 _ALL_PAGES = [
     "page:dashboard", "page:jdmanager", "page:upload", "page:listing",
     "page:review", "page:jdalign", "page:jdalignlist", "page:pipeline",
@@ -77,7 +122,7 @@ _ALL_ACTIONS = [
 _SYSTEM_ROLES = {
     "super_admin": {
         "label":       "Super Admin",
-        "permissions": _ALL_PAGES + _ALL_ACTIONS,
+        "permissions": _ALL_PAGES + _ALL_ACTIONS,   # all pages + all actions
     },
     "admin": {
         "label":       "Admin",
@@ -95,8 +140,13 @@ _SYSTEM_ROLES = {
 }
 
 
+# -----------------------------------------------------------------------------
+# seed_roles — Create Default Roles on First Startup
+# Runs once when the roles table is empty.
+# Also promotes any existing "admin" users to "super_admin" if roles
+# are being seeded for the first time on an existing database.
+# -----------------------------------------------------------------------------
 def seed_roles():
-    """Seed the three system roles. Runs once; promotes any existing admin → super_admin."""
     try:
         import json
         from models.role import Role
@@ -105,7 +155,7 @@ def seed_roles():
         db = SessionLocal()
         try:
             if db.query(Role).count() > 0:
-                return  # already seeded
+                return  # already seeded — skip
             for name, cfg in _SYSTEM_ROLES.items():
                 db.add(Role(
                     name        = name,
@@ -114,7 +164,7 @@ def seed_roles():
                     is_system   = True,
                 ))
             db.flush()
-            # Promote existing admin users (seeded before roles existed) to super_admin
+            # Promote any pre-existing admin accounts to super_admin
             db.query(User).filter(User.role == "admin").update({"role": "super_admin"})
             db.commit()
             print("[auth] Seeded default roles: super_admin, admin, recruiter")
@@ -124,8 +174,13 @@ def seed_roles():
         print(f"[auth] Warning: seed_roles skipped: {e}")
 
 
+# -----------------------------------------------------------------------------
+# seed_admin — Create the First Super Admin Account
+# Only runs when the users table is completely empty (fresh install).
+# Reads credentials from ADMIN_USERNAME and ADMIN_PASSWORD in .env.
+# Password is bcrypt-hashed before storing — never saved as plain text.
+# -----------------------------------------------------------------------------
 def seed_admin():
-    """Create the first super_admin account from ai_config credentials if no users exist yet."""
     try:
         from models.user import User
         from passlib.context import CryptContext

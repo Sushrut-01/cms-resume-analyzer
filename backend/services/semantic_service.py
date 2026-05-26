@@ -1,20 +1,30 @@
-"""
-Semantic similarity service for hybrid CV alignment.
-
-Two-tier design — uses the best available backend automatically:
-  Tier 1 (preferred): sentence-transformers  → true neural embeddings, ~22 MB model
-  Tier 2 (fallback):  scikit-learn TF-IDF    → text-overlap cosine, zero extra download
-
-Install Tier 1 for best quality:
-    pip install sentence-transformers
-
-Tier 2 works out-of-the-box if scikit-learn is installed.
-
-Key capability: SOFT GAP detection.
-  Hard gap  = keyword missing AND no semantically related content found in resume
-  Soft gap  = keyword missing BUT resume has a related phrase with different wording
-              → candidate has the skill, they just need to REPHRASE it
-"""
+# =============================================================================
+# services/semantic_service.py — Semantic (Meaning-Based) Similarity Scoring
+#
+# Provides two capabilities used during AI resume analysis:
+#
+#   1. semantic_score(resume, jd)
+#      Overall similarity between resume and JD — measures meaning, not just
+#      keyword overlap. A resume can score well even if it uses different words
+#      than the JD, as long as the meaning is similar.
+#
+#   2. detect_soft_gaps(resume, missing_keywords, jd)
+#      Classifies each missing keyword as a HARD or SOFT gap:
+#        Hard gap = keyword missing AND no semantically related content found
+#                   → Candidate genuinely lacks this skill
+#        Soft gap = keyword missing BUT resume has a related sentence
+#                   → Candidate has the skill, they just need to REPHRASE it
+#      This helps recruiters focus rewriting effort on actual gaps vs wording issues.
+#
+# Two-tier design (automatic fallback):
+#   Tier 1 (preferred): sentence-transformers → neural embeddings, ~22 MB model
+#                       Best quality — understands context and synonyms
+#   Tier 2 (fallback):  scikit-learn TF-IDF   → text overlap scoring
+#                       No download needed — works out-of-the-box
+#
+# All processing runs locally on the server — no text is sent externally.
+# HF_HUB_OFFLINE=1 in .env prevents any HuggingFace network calls.
+# =============================================================================
 import re
 import os
 
