@@ -20,7 +20,7 @@ _DEFAULT = {
     "nvidia_model":         "meta/llama-3.1-70b-instruct",
     "admin_contact_email":  "",           # shown to users when a domain limitation is hit
     "login_username":       "admin",
-    "login_password":       "cms@2024",
+    "login_password":       "",          # set ADMIN_PASSWORD in .env — never hardcode here
 }
 
 

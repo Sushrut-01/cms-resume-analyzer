@@ -135,8 +135,9 @@ def seed_admin():
         try:
             if db.query(User).count() == 0:
                 cfg      = ai_config.load()
-                email    = cfg.get("login_username", "admin")
-                password = cfg.get("login_password", "cms@2024")
+                import os as _os
+                email    = cfg.get("login_username") or _os.getenv("ADMIN_USERNAME", "admin")
+                password = cfg.get("login_password") or _os.getenv("ADMIN_PASSWORD", "cms@2024")
                 name     = email.split("@")[0].title()
                 ctx      = CryptContext(schemes=["bcrypt"], deprecated="auto")
                 db.add(User(
