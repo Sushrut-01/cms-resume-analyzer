@@ -314,6 +314,14 @@ def generate_jd_aligned(candidate_id: int, db: Session = Depends(get_db), _=Depe
     if not c:
         raise HTTPException(status_code=404, detail="Candidate not found")
 
+    # Analysis must be completed before JD alignment — alignment uses AI score,
+    # gaps, and strengths from analysis to decide what to rewrite.
+    if c.status not in ("Bot Analyzed", "Approved"):
+        raise HTTPException(
+            status_code=400,
+            detail="Resume must be analyzed before JD alignment. Please run Analyze first.",
+        )
+
     if not c.client_requirement:
         raise HTTPException(
             status_code=400,
