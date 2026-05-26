@@ -1283,11 +1283,25 @@ function PageReview({ setPage, selectedId, startAI, stopAI }) {
   const [botOpen, setBotOpen] = useState(false);
   const [adminContact, setAdminContact] = useState("");
   useEffect(() => {
-    api.getCandidates().then(list => { setCandidates(list); if (list.length > 0) { const id = selectedId || list[0].id; loadCandidate(id); } });
+    api.getCandidates().then(list => {
+      setCandidates(list);
+      if (list.length > 0) {
+        const id = selectedId || list[0].id;
+        loadCandidate(id, list);
+      }
+    });
     api.getSettings().then(r => { if (r.success && r.data) setAdminContact(r.data.admin_contact_email || ""); });
   }, []);
-  const loadCandidate = async (id) => {
+  const loadCandidate = async (id, list) => {
     const c = await api.getCandidate(id);
+    if (!c) {
+      // stale selectedId (candidate belongs to another recruiter) — fall back to first in list
+      const fallback = list && list.length > 0 ? await api.getCandidate(list[0].id) : null;
+      setCandidate(fallback || null);
+      setEditText(fallback?.improved_resume_text || fallback?.original_resume_text || "");
+      setManualText(fallback?.manual_resume_text || "");
+      return;
+    }
     setCandidate(c);
     setEditText(c.improved_resume_text||c.original_resume_text||"");
     setManualText(c.manual_resume_text||"");
@@ -1678,10 +1692,17 @@ function PageJDAlign({ setPage, selectedId, alignState, setAlignState, startAI, 
   const [roleCompat, setRoleCompat] = useState(null);
   const [overrideCompat, setOverrideCompat] = useState(false);
 
-  useEffect(() => { api.getCandidates().then(list => { setCandidates(list); if (list.length>0) { const id=selectedId||alignState?.candidateId||list[0].id; loadCandidate(id); } }); }, []);
+  useEffect(() => { api.getCandidates().then(list => { setCandidates(list); if (list.length>0) { const id=selectedId||alignState?.candidateId||list[0].id; loadCandidate(id, list); } }); }, []);
 
-  const loadCandidate = async (id) => {
-    const c = await api.getCandidate(id); setCandidate(c); setOverrideCompat(false);
+  const loadCandidate = async (id, list) => {
+    const c = await api.getCandidate(id);
+    if (!c) {
+      // stale ID (candidate belongs to another recruiter) — fall back to first in list
+      const fallbackId = list && list.length > 0 ? list[0].id : null;
+      if (fallbackId && fallbackId !== id) { loadCandidate(fallbackId, list); } else { setCandidate(null); setDraftText(""); setGenStats(null); setGenerated(false); }
+      return;
+    }
+    setCandidate(c); setOverrideCompat(false);
     try { const rc = await authFetch(`${API}/candidates/${id}/role-compatibility`).then(r=>r.json()); setRoleCompat(rc); } catch (ex) { setRoleCompat(null); }
     if (alignState?.candidateId===id && alignState?.draftText) {
       setDraftText(alignState.draftText); setGenStats(alignState.genStats||null); setGenerated(true);
