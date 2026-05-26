@@ -2314,13 +2314,13 @@ function PageUsers() {
 
   const openEdit = (u) => {
     setExpanded(expanded === u.id ? null : u.id);
-    setEditForm({ name:u.name, role:u.role, is_active:u.is_active, password:"" });
+    setEditForm({ name:u.name, email:u.email, role:u.role, is_active:u.is_active, password:"" });
     setMsg(null);
   };
 
   const handleSave = async (id) => {
     setSaving(true); setMsg(null);
-    const p = { name:editForm.name, role:editForm.role, is_active:editForm.is_active };
+    const p = { name:editForm.name, email:editForm.email, role:editForm.role, is_active:editForm.is_active };
     if (editForm.password) p.password = editForm.password;
     const res = await api.updateUser(id, p);
     setSaving(false);
@@ -2463,14 +2463,14 @@ function PageUsers() {
                           <input style={inp} value={editForm.name||""} onChange={e=>setEditForm(f=>({...f,name:e.target.value}))} />
                         </div>
                         <div>
+                          <label style={{ fontSize:11, fontWeight:600, color:C.textSub, display:"block", marginBottom:4 }}>Kforce Email (login ID)</label>
+                          <input style={inp} value={editForm.email||""} onChange={e=>setEditForm(f=>({...f,email:e.target.value}))} placeholder="firstname.lastname@kforce.co.in" />
+                        </div>
+                        <div>
                           <label style={{ fontSize:11, fontWeight:600, color:C.textSub, display:"block", marginBottom:4 }}>Role</label>
                           <select style={inp} value={editForm.role||"recruiter"} onChange={e=>setEditForm(f=>({...f,role:e.target.value}))} disabled={isMe}>
                             {roles.map(r=><option key={r.name} value={r.name}>{r.label}</option>)}
                           </select>
-                        </div>
-                        <div>
-                          <label style={{ fontSize:11, fontWeight:600, color:C.textSub, display:"block", marginBottom:4 }}>New Password <span style={{ fontWeight:400, color:C.muted }}>(leave blank to keep)</span></label>
-                          <input type="password" style={inp} placeholder="New password" value={editForm.password||""} onChange={e=>setEditForm(f=>({...f,password:e.target.value}))} />
                         </div>
                         <div>
                           <label style={{ fontSize:11, fontWeight:600, color:C.textSub, display:"block", marginBottom:4 }}>Status</label>
@@ -2478,6 +2478,10 @@ function PageUsers() {
                             <option value="active">Active</option>
                             <option value="inactive">Inactive (cannot login)</option>
                           </select>
+                        </div>
+                        <div style={{ gridColumn:"span 2" }}>
+                          <label style={{ fontSize:11, fontWeight:600, color:C.textSub, display:"block", marginBottom:4 }}>Password <span style={{ fontWeight:400, color:C.muted }}>(leave blank to keep · not needed for Microsoft login users)</span></label>
+                          <input type="password" style={inp} placeholder="New password" value={editForm.password||""} onChange={e=>setEditForm(f=>({...f,password:e.target.value}))} />
                         </div>
                       </div>
                       <div style={{ display:"flex", gap:8 }}>

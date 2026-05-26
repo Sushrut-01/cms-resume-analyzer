@@ -69,8 +69,10 @@ def login(payload: dict, request: Request, db: Session = Depends(get_db)):
         raise HTTPException(status_code=400, detail="Email and password are required")
 
     user = db.query(User).filter(User.email == email, User.is_active == True).first()
-    if not user or not _verify(password, user.password_hash):
+    if not user or not user.password_hash or not _verify(password, user.password_hash):
         _record_failure(ip)
+        if user and not user.password_hash:
+            raise HTTPException(status_code=401, detail="This account uses Microsoft sign-in. Please use the 'Sign in with Microsoft' button.")
         raise HTTPException(status_code=401, detail="Invalid email or password")
 
     _clear_failures(ip)

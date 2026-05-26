@@ -42,14 +42,16 @@ def create_user(payload: dict, db: Session = Depends(get_db), _=Depends(require_
     password = payload.get("password") or ""
     role     = payload.get("role") or "recruiter"
 
-    if not name or not email or not password:
-        raise HTTPException(status_code=400, detail="name, email, and password are required")
+    if not name or not email:
+        raise HTTPException(status_code=400, detail="name and email are required")
     if not _valid_role(role, db):
         raise HTTPException(status_code=400, detail="Invalid role")
     if db.query(User).filter(User.email == email).first():
         raise HTTPException(status_code=400, detail="Email already in use")
 
-    user = User(name=name, email=email, password_hash=_hash(password), role=role)
+    # Password optional — Entra ID users log in via Microsoft, no password needed
+    pwd_hash = _hash(password) if password else None
+    user = User(name=name, email=email, password_hash=pwd_hash, role=role)
     db.add(user)
     db.commit()
     db.refresh(user)
@@ -66,8 +68,16 @@ def update_user(user_id: int, payload: dict, db: Session = Depends(get_db), curr
         raise HTTPException(status_code=403, detail="Admin access required")
 
     if current.role in ("admin", "super_admin"):
-        if "name"      in payload: user.name      = (payload["name"] or "").strip()
-        if "role"      in payload:
+        if "name"  in payload: user.name  = (payload["name"] or "").strip()
+        if "email" in payload:
+            new_email = (payload["email"] or "").strip().lower()
+            if not new_email:
+                raise HTTPException(status_code=400, detail="Email cannot be empty")
+            conflict = db.query(User).filter(User.email == new_email, User.id != user_id).first()
+            if conflict:
+                raise HTTPException(status_code=400, detail="Email already in use by another account")
+            user.email = new_email
+        if "role" in payload:
             if not _valid_role(payload["role"], db):
                 raise HTTPException(status_code=400, detail="Invalid role")
             user.role = payload["role"]

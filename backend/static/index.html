@@ -508,9 +508,9 @@ function PageLogin({ onLogin }) {
 
           <form onSubmit={handleSubmit} noValidate>
             <div style={{ marginBottom:18 }}>
-              <label style={{ fontSize:13, fontWeight:600, color:C.text, display:"block", marginBottom:7 }}>Username</label>
-              <input type="text" value={username} onChange={e=>setUsername(e.target.value)} autoFocus
-                placeholder="Enter username" style={inp} />
+              <label style={{ fontSize:13, fontWeight:600, color:C.text, display:"block", marginBottom:7 }}>Email (Kforce ID)</label>
+              <input type="email" value={username} onChange={e=>setUsername(e.target.value)} autoFocus
+                placeholder="firstname.lastname@kforce.co.in" style={inp} />
             </div>
 
             <div style={{ marginBottom:20 }}>
