@@ -569,15 +569,17 @@ def role_compatibility_check(candidate_id: int, db: Session = Depends(get_db), _
 # GET /candidates/list/jd-aligned — List JD-Aligned Candidates
 # Returns only candidates whose resume has been JD-aligned or AI-simulated.
 # Used by the download/export view to show submission-ready candidates.
+# Same data isolation as GET /candidates/ — recruiters see only their own.
 # -----------------------------------------------------------------------------
 @router.get("/list/jd-aligned")
-def list_jd_aligned(db: Session = Depends(get_db), _=Depends(get_current_user)):
-    candidates = (
+def list_jd_aligned(db: Session = Depends(get_db), current_user=Depends(get_current_user)):
+    q = (
         db.query(Candidate)
         .filter(Candidate.resume_version_type.in_(["AI_SIMULATED", "JD_ALIGNED"]))
-        .order_by(Candidate.created_at.desc())
-        .all()
     )
+    if current_user.role == "recruiter":
+        q = q.filter(Candidate.uploaded_by == current_user.id)
+    candidates = q.order_by(Candidate.created_at.desc()).all()
     return {"success": True, "data": [to_dict(c) for c in candidates]}
 
 

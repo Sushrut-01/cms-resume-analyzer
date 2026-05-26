@@ -54,13 +54,16 @@ Rules:
 # What IS included: candidate counts, scores, statuses, skill gaps, JD names
 # What is NOT included: raw resume text, personal contact details
 # -----------------------------------------------------------------------------
-def _build_context(db: Session, ctx: dict) -> str:
+def _build_context(db: Session, ctx: dict, current_user=None) -> str:
     lines = [f"Page: {ctx.get('page', 'dashboard')}"]
     try:
         from models.candidate import Candidate
         from models.client_requirement import ClientRequirement
 
-        candidates = db.query(Candidate).all()
+        q = db.query(Candidate)
+        if current_user and current_user.role == "recruiter":
+            q = q.filter(Candidate.uploaded_by == current_user.id)
+        candidates = q.all()
         total    = len(candidates)
         pending  = sum(1 for c in candidates if c.status in ("Pending Review", "Uploaded"))
         analyzed = sum(1 for c in candidates if c.status == "Bot Analyzed")
@@ -117,13 +120,13 @@ def _build_context(db: Session, ctx: dict) -> str:
 # If the AI provider is offline → returns a helpful "go to Settings" message.
 # -----------------------------------------------------------------------------
 @router.post("/chat")
-def bot_chat(payload: dict, db: Session = Depends(get_db), _=Depends(get_current_user)):
+def bot_chat(payload: dict, db: Session = Depends(get_db), current_user=Depends(get_current_user)):
     message = (payload.get("message") or "").strip()
     if not message:
         return {"reply": "Please send a message."}
 
-    # Build the live context from current database state
-    context_str = _build_context(db, payload.get("context", {}))
+    # Build the live context from current database state (filtered by recruiter if applicable)
+    context_str = _build_context(db, payload.get("context", {}), current_user)
 
     # Assemble the full prompt: instructions + context + recruiter's question
     prompt = f"{SYSTEM_PROMPT}\n\nContext:\n{context_str}\n\nRecruiter: {message}\n\nReply:"
