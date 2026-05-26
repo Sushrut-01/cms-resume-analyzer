@@ -1,3 +1,29 @@
+# =============================================================================
+# candidates.py — Resume Upload, AI Analysis & Download
+#
+# This is the core workflow file. It handles everything from uploading a PDF
+# to running AI analysis to downloading the final Word document.
+#
+# Endpoint summary:
+#   GET  /candidates/                          → list all candidates
+#   GET  /candidates/{id}                      → get one candidate's full data
+#   POST /candidates/upload                    → upload a PDF resume
+#   POST /candidates/{id}/analyze              → run AI analysis against a JD
+#   POST /candidates/{id}/generate-jd-aligned-resume → generate JD-aligned resume draft
+#   GET  /candidates/{id}/download-resume      → download as Word (.docx) file
+#   DELETE /candidates/{id}                    → delete candidate + uploaded file
+#   PUT  /candidates/{id}/approve              → mark candidate as Approved
+#   PUT  /candidates/{id}/update               → save edited resume text
+#   PUT  /candidates/{id}/manual-resume        → save manual/AI-simulated resume
+#   GET  /candidates/{id}/role-compatibility   → check if candidate role matches JD role
+#   GET  /candidates/list/jd-aligned           → list all JD-aligned/AI-simulated candidates
+#   GET  /candidates/system/ollama-status      → check AI provider status
+#
+# Access: all endpoints require get_current_user (any logged-in user)
+# PII STRIPPING: before any AI call, contact details (email, phone, LinkedIn,
+# GitHub, name, address) are stripped from resume text so they never reach the AI.
+# =============================================================================
+
 from fastapi import (
     APIRouter,
     UploadFile,
@@ -33,10 +59,15 @@ from services.docx_service import generate_word_resume, generate_word_from_struc
 
 router = APIRouter(prefix="/candidates", tags=["Candidates"])
 
+# Upload folder path — set via UPLOAD_FOLDER in .env, defaults to ./uploads
 UPLOAD_FOLDER = os.getenv("UPLOAD_FOLDER", "./uploads")
 
 
-# ── GET all candidates ────────────────────────────────────────────────────────
+# -----------------------------------------------------------------------------
+# GET /candidates/ — List All Candidates
+# Returns all candidates ordered by most recently uploaded first.
+# Includes all analysis data (score, gaps, strengths, etc.) in the response.
+# -----------------------------------------------------------------------------
 @router.get("/")
 def get_all_candidates(db: Session = Depends(get_db), _=Depends(get_current_user)):
     candidates = (
@@ -47,7 +78,11 @@ def get_all_candidates(db: Session = Depends(get_db), _=Depends(get_current_user
     return {"success": True, "data": [to_dict(c) for c in candidates]}
 
 
-# ── GET single candidate ──────────────────────────────────────────────────────
+# -----------------------------------------------------------------------------
+# GET /candidates/{candidate_id} — Get One Candidate
+# Returns full details for a single candidate including all resume versions.
+# Returns 404 if the candidate ID does not exist.
+# -----------------------------------------------------------------------------
 @router.get("/{candidate_id}")
 def get_candidate(candidate_id: int, db: Session = Depends(get_db), _=Depends(get_current_user)):
     c = db.query(Candidate).filter(Candidate.id == candidate_id).first()
@@ -57,7 +92,20 @@ def get_candidate(candidate_id: int, db: Session = Depends(get_db), _=Depends(ge
     return {"success": True, "data": to_dict(c)}
 
 
-# ── UPLOAD resume ─────────────────────────────────────────────────────────────
+# -----------------------------------------------------------------------------
+# POST /candidates/upload — Upload a PDF Resume
+#
+# Steps:
+#   1. Validate the selected JD exists and is active
+#   2. Save the PDF file to the uploads folder with a timestamp prefix
+#   3. Extract text from the PDF (name, email, phone, skills, full text)
+#   4. Create a new Candidate record in the database
+#   5. Save an ORIGINAL resume version snapshot
+#   6. Return extracted contact details for the UI to display
+#
+# The PDF is stored on disk. Extracted text is stored in the database.
+# Status is set to "Uploaded" — analysis runs separately.
+# -----------------------------------------------------------------------------
 @router.post("/upload")
 async def upload_resume(
     file: UploadFile = File(...),
@@ -68,6 +116,7 @@ async def upload_resume(
 ):
     os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 
+    # Verify the selected JD exists and is still active
     client_req = (
         db.query(ClientRequirement)
         .filter(
@@ -83,6 +132,7 @@ async def upload_resume(
             detail="Invalid or inactive client requirement",
         )
 
+    # Save PDF with timestamp prefix to avoid filename collisions
     timestamp = datetime.utcnow().strftime("%Y%m%d_%H%M%S")
     filename = f"{timestamp}_{file.filename}"
     pdf_path = os.path.join(UPLOAD_FOLDER, filename)
@@ -90,6 +140,7 @@ async def upload_resume(
     with open(pdf_path, "wb") as buffer:
         shutil.copyfileobj(file.file, buffer)
 
+    # Extract text and contact details from the PDF
     extracted = extract_text_from_pdf(pdf_path)
     if not extracted.get("success"):
         raise HTTPException(
@@ -97,6 +148,7 @@ async def upload_resume(
             detail=f"PDF extraction failed: {extracted.get('error')}",
         )
 
+    # Create the candidate record — status starts as "Uploaded"
     candidate = Candidate(
         name=extracted.get("name"),
         email=extracted.get("email"),
@@ -120,7 +172,7 @@ async def upload_resume(
     db.commit()
     db.refresh(candidate)
 
-    # Store ORIGINAL version
+    # Save a version snapshot so the original is never overwritten
     db.add(
         ResumeVersion(
             candidate_id=candidate.id,
@@ -144,7 +196,24 @@ async def upload_resume(
     }
 
 
-# ── ANALYZE with AI (JD enforced) ─────────────────────────────────────────────
+# -----------------------------------------------------------------------------
+# POST /candidates/{candidate_id}/analyze — Run AI Analysis
+#
+# This is the main AI processing step. It:
+#   1. Loads the candidate's resume text and their linked JD text
+#   2. Strips all PII (name, email, phone, LinkedIn, GitHub) before sending to AI
+#   3. Sends resume + JD to the AI for gap analysis and scoring
+#   4. Saves all results back to the candidate record:
+#      - score (0-100%), match_level, strengths, gaps, recommendations
+#      - must-have missing skills, nice-to-have missing skills
+#      - semantic score (embedding similarity), detected domain
+#      - improved resume text (AI-rewritten version)
+#   5. Saves an ANALYZED version snapshot
+#   6. Sets status to "Bot Analyzed"
+#
+# Requires: JD must be linked, active, and have enough text (>30 chars)
+# Requires: AI provider must be running (checks Ollama/Azure/Groq status)
+# -----------------------------------------------------------------------------
 @router.post("/{candidate_id}/analyze")
 def analyze_candidate(candidate_id: int, db: Session = Depends(get_db), _=Depends(get_current_user)):
     c = db.query(Candidate).filter(Candidate.id == candidate_id).first()
@@ -169,12 +238,14 @@ def analyze_candidate(candidate_id: int, db: Session = Depends(get_db), _=Depend
             detail="Client requirement text is too short",
         )
 
+    # Verify the AI provider is online before sending data
     if not check_ollama_status():
         raise HTTPException(
             status_code=503,
             detail="Ollama LLM is not running",
         )
 
+    # Run AI analysis — PII stripping happens inside analyze_resume()
     result = analyze_resume(
         resume_text=c.original_resume_text,
         jd_text=c.client_requirement.jd_text,
@@ -188,6 +259,7 @@ def analyze_candidate(candidate_id: int, db: Session = Depends(get_db), _=Depend
 
     data = result["data"]
 
+    # Save all AI analysis results to the candidate record
     c.score = data.get("score", 0)
     c.match_level = data.get("match_level", "")
     c.improved_resume_text = data.get("final_resume", "")
@@ -209,6 +281,7 @@ def analyze_candidate(candidate_id: int, db: Session = Depends(get_db), _=Depend
     c.resume_version_type = "ANALYZED"
     c.updated_at = datetime.utcnow()
 
+    # Save a version snapshot of the AI-improved resume
     db.add(
         ResumeVersion(
             candidate_id=c.id,
@@ -224,7 +297,14 @@ def analyze_candidate(candidate_id: int, db: Session = Depends(get_db), _=Depend
     return {"success": True, "data": data}
 
 
-# ── JD‑Aligned Resume Draft ───────────────────────────────────────────────────
+# -----------------------------------------------------------------------------
+# POST /candidates/{candidate_id}/generate-jd-aligned-resume — Generate JD-Aligned Resume
+#
+# A deeper step than analysis — rewrites the resume to specifically match the JD.
+# It may add missing skills, rephrase bullet points, and suggest new projects.
+# Each run is logged in align_history so recruiters can compare runs.
+# PII stripping happens inside generate_aligned_resume() before the AI call.
+# -----------------------------------------------------------------------------
 @router.post("/{candidate_id}/generate-jd-aligned-resume")
 def generate_jd_aligned(candidate_id: int, db: Session = Depends(get_db), _=Depends(get_current_user)):
     c = db.query(Candidate).filter(Candidate.id == candidate_id).first()
@@ -240,6 +320,7 @@ def generate_jd_aligned(candidate_id: int, db: Session = Depends(get_db), _=Depe
     if not check_ollama_status():
         raise HTTPException(status_code=503, detail="Ollama LLM is not running")
 
+    # Run JD alignment — PII stripped inside this function
     result = generate_aligned_resume(
         resume_text=c.original_resume_text,
         jd_text=c.client_requirement.jd_text,
@@ -261,7 +342,7 @@ def generate_jd_aligned(candidate_id: int, db: Session = Depends(get_db), _=Depe
     rephrased_count   = result.get("rephrased_count", 0)
     soft_gap_count    = result.get("soft_gap_count", 0)
 
-    # Append this run to the candidate's alignment history
+    # Append this run to the candidate's alignment history (kept for comparison)
     history = _safe_json(c.align_history)
     history.append({
         "run":              len(history) + 1,
@@ -281,6 +362,7 @@ def generate_jd_aligned(candidate_id: int, db: Session = Depends(get_db), _=Depe
     if result.get("structured_resume_json"):
         c.structured_resume_json = result["structured_resume_json"]
 
+    # Save a version snapshot of the JD-aligned resume
     db.add(
         ResumeVersion(
             candidate_id=c.id,
@@ -306,15 +388,25 @@ def generate_jd_aligned(candidate_id: int, db: Session = Depends(get_db), _=Depe
     }
 
 
-# ── DOWNLOAD resume ───────────────────────────────────────────────────────────
+# -----------------------------------------------------------------------------
+# GET /candidates/{candidate_id}/download-resume — Download Resume as Word File
+#
+# Generates a .docx (Microsoft Word) file from the candidate's resume text.
+# Two paths:
+#   1. Structured JSON path: used when AI returned structured data (Groq/Gemini/Azure)
+#      — produces a well-formatted Word document with sections
+#   2. Text path: fallback for Ollama or older records — generates from plain text
+#
+# Priority of resume content used:
+#   manual_resume_text (if recruiter edited) → improved_resume_text (AI output) → original
+# -----------------------------------------------------------------------------
 @router.get("/{candidate_id}/download-resume")
 def download_resume(candidate_id: int, db: Session = Depends(get_db), _=Depends(get_current_user)):
     c = db.query(Candidate).filter(Candidate.id == candidate_id).first()
     if not c:
         raise HTTPException(status_code=404, detail="Candidate not found")
 
-    # Use structured JSON when available (Phase B — Groq/Gemini/Azure runs)
-    # Falls back to text-parsing path for Ollama or older records
+    # Try structured JSON path first (better formatting)
     structured_json = getattr(c, "structured_resume_json", None)
     if structured_json:
         try:
@@ -327,6 +419,7 @@ def download_resume(candidate_id: int, db: Session = Depends(get_db), _=Depends(
         structured_data = None
         docx_bytes = None
 
+    # Fall back to plain text path if structured data unavailable
     if docx_bytes is None:
         resume_text = (
             c.manual_resume_text
@@ -341,6 +434,7 @@ def download_resume(candidate_id: int, db: Session = Depends(get_db), _=Depends(
 
     filename = f"{(c.name or 'candidate').replace(' ', '_')}_resume.docx"
 
+    # Return as a file download response — browser prompts "Save As"
     return Response(
         content=docx_bytes,
         media_type=(
@@ -353,13 +447,17 @@ def download_resume(candidate_id: int, db: Session = Depends(get_db), _=Depends(
     )
 
 
-# ── Approve candidate ─────────────────────────────────────────────────────────
+# -----------------------------------------------------------------------------
+# DELETE /candidates/{candidate_id} — Delete a Candidate
+# Removes the candidate record from the database.
+# Also deletes the uploaded PDF file from disk if it exists.
+# -----------------------------------------------------------------------------
 @router.delete("/{candidate_id}")
 def delete_candidate(candidate_id: int, db: Session = Depends(get_db), _=Depends(get_current_user)):
     c = db.query(Candidate).filter(Candidate.id == candidate_id).first()
     if not c:
         raise HTTPException(status_code=404, detail="Candidate not found")
-    # Remove uploaded file if it exists
+    # Remove the uploaded PDF file from disk
     if c.resume_path and os.path.exists(c.resume_path):
         try:
             os.remove(c.resume_path)
@@ -370,6 +468,11 @@ def delete_candidate(candidate_id: int, db: Session = Depends(get_db), _=Depends
     return {"success": True, "message": f"Candidate {candidate_id} deleted"}
 
 
+# -----------------------------------------------------------------------------
+# PUT /candidates/{candidate_id}/approve — Approve a Candidate
+# Sets the candidate's status to "Approved".
+# Used by recruiters to mark candidates who are ready to be submitted.
+# -----------------------------------------------------------------------------
 @router.put("/{candidate_id}/approve")
 def approve_candidate(candidate_id: int, db: Session = Depends(get_db), _=Depends(get_current_user)):
     c = db.query(Candidate).filter(Candidate.id == candidate_id).first()
@@ -380,7 +483,10 @@ def approve_candidate(candidate_id: int, db: Session = Depends(get_db), _=Depend
     return {"success": True, "status": "Approved"}
 
 
-# ── Update improved resume text ───────────────────────────────────────────────
+# -----------------------------------------------------------------------------
+# PUT /candidates/{candidate_id}/update — Save Edited Resume Text
+# Allows saving changes made to the improved_resume_text in the editor.
+# -----------------------------------------------------------------------------
 @router.put("/{candidate_id}/update")
 async def update_resume(
     candidate_id: int,
@@ -396,7 +502,11 @@ async def update_resume(
     return {"success": True}
 
 
-# ── Save manual / JD-aligned resume ──────────────────────────────────────────
+# -----------------------------------------------------------------------------
+# PUT /candidates/{candidate_id}/manual-resume — Save Manual/AI-Simulated Resume
+# Saves the manually edited or AI-simulated resume draft.
+# Sets version type to "AI_SIMULATED" to indicate it was manually crafted.
+# -----------------------------------------------------------------------------
 @router.put("/{candidate_id}/manual-resume")
 async def save_manual_resume(
     candidate_id: int,
@@ -413,7 +523,16 @@ async def save_manual_resume(
     return {"success": True}
 
 
-# ── Role compatibility pre-check (called before JD alignment) ────────────────
+# -----------------------------------------------------------------------------
+# GET /candidates/{candidate_id}/role-compatibility — Pre-Check Role Match
+#
+# Checks whether the candidate's job function matches the JD's job function
+# BEFORE running the full JD alignment (which is more expensive).
+# Example: "Software Engineer" resume vs "Finance Analyst" JD → mismatch warning
+#
+# Results are cached on the candidate record to avoid re-running.
+# Returns: verdict (Compatible/Partial/Incompatible), message, color for UI badge
+# -----------------------------------------------------------------------------
 @router.get("/{candidate_id}/role-compatibility")
 def role_compatibility_check(candidate_id: int, db: Session = Depends(get_db), _=Depends(get_current_user)):
     c = db.query(Candidate).filter(Candidate.id == candidate_id).first()
@@ -422,11 +541,12 @@ def role_compatibility_check(candidate_id: int, db: Session = Depends(get_db), _
     if not c.client_requirement:
         raise HTTPException(status_code=400, detail="No JD selected")
 
+    # Detect the function/domain of both the resume and the JD
     candidate_fn = detect_function(c.original_resume_text or "")
     jd_fn        = detect_function(c.client_requirement.jd_text or "")
     compat       = check_role_compatibility(candidate_fn, jd_fn)
 
-    # Cache on the candidate record
+    # Cache results on the candidate to avoid re-running unnecessarily
     c.candidate_function = candidate_fn
     c.jd_function        = jd_fn
     c.role_compatibility = compat["verdict"]
@@ -442,7 +562,11 @@ def role_compatibility_check(candidate_id: int, db: Session = Depends(get_db), _
     }
 
 
-# ── JD-Aligned approved candidates list ──────────────────────────────────────
+# -----------------------------------------------------------------------------
+# GET /candidates/list/jd-aligned — List JD-Aligned Candidates
+# Returns only candidates whose resume has been JD-aligned or AI-simulated.
+# Used by the download/export view to show submission-ready candidates.
+# -----------------------------------------------------------------------------
 @router.get("/list/jd-aligned")
 def list_jd_aligned(db: Session = Depends(get_db), _=Depends(get_current_user)):
     candidates = (
@@ -454,13 +578,22 @@ def list_jd_aligned(db: Session = Depends(get_db), _=Depends(get_current_user)):
     return {"success": True, "data": [to_dict(c) for c in candidates]}
 
 
-# ── Ollama status ─────────────────────────────────────────────────────────────
+# -----------------------------------------------------------------------------
+# GET /candidates/system/ollama-status — Check AI Provider Status
+# Returns whether the configured AI provider (Ollama/Azure/Groq) is reachable.
+# Used by the UI to show the online/offline indicator.
+# This endpoint does NOT require authentication (status check is harmless).
+# -----------------------------------------------------------------------------
 @router.get("/system/ollama-status")
 def ollama_status():
     return get_provider_status()
 
 
-# ── Helper ────────────────────────────────────────────────────────────────────
+# -----------------------------------------------------------------------------
+# Helper: Safely parse a JSON string stored in the database
+# Returns an empty list if the value is None or not valid JSON.
+# Used because analysis results are stored as JSON strings in SQLite.
+# -----------------------------------------------------------------------------
 def _safe_json(val):
     if not val:
         return []
@@ -470,6 +603,11 @@ def _safe_json(val):
         return []
 
 
+# -----------------------------------------------------------------------------
+# Helper: Convert a Candidate database record into a full dictionary
+# This is what gets returned in API responses.
+# All JSON string fields (gaps, strengths, etc.) are parsed back to lists.
+# -----------------------------------------------------------------------------
 def to_dict(c: Candidate):
     return {
         "id": c.id,
