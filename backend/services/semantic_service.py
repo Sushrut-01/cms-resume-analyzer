@@ -38,19 +38,28 @@ _SOFT_GAP_THRESHOLD_ST    = 0.62
 _SOFT_GAP_THRESHOLD_TFIDF = 0.18
 
 
+# -----------------------------------------------------------------------------
+# Model Loading (lazy — only loads when first needed, not at import time)
+# _load_tier1: tries sentence-transformers (neural, best quality, ~22 MB model)
+# _load_tier2: falls back to scikit-learn TF-IDF (keyword overlap, always available)
+# Once loaded, the tier is cached in _tier — model is NOT reloaded on each call.
+# HF_HUB_OFFLINE=1 in .env prevents any network download — uses local cache only.
+# -----------------------------------------------------------------------------
+
 def _load_tier1():
     """Try to load sentence-transformers model. Returns True on success."""
     global _st_model, _tier
     if _tier is not None:
-        return _tier == "st"
+        return _tier == "st"   # already determined — return cached result
     try:
         from sentence_transformers import SentenceTransformer
+        # all-MiniLM-L6-v2: fast, small (22 MB), good accuracy for sentence similarity
         _st_model = SentenceTransformer("all-MiniLM-L6-v2")
         _tier = "st"
         print("[semantic] Loaded sentence-transformers (Tier 1 — neural embeddings)")
         return True
     except Exception:
-        pass
+        pass   # package not installed or model not cached — fall through to Tier 2
     return False
 
 
@@ -58,18 +67,19 @@ def _load_tier2():
     """Try to load scikit-learn. Returns True on success."""
     global _tier
     if _tier is not None:
-        return True
+        return True   # already loaded
     try:
         import sklearn  # noqa: F401
         _tier = "tfidf"
         print("[semantic] sentence-transformers not found — using TF-IDF fallback (Tier 2)")
         return True
     except Exception:
-        _tier = "none"
+        _tier = "none"   # neither package available — semantic scoring disabled
         return False
 
 
 def _ensure_loaded():
+    """Load the best available tier if not already loaded."""
     if _tier is not None:
         return
     if not _load_tier1():
@@ -83,42 +93,54 @@ def get_tier() -> str:
 
 
 def is_available() -> bool:
+    """Returns True if any semantic scoring tier is available."""
     return get_tier() in ("st", "tfidf")
 
 
 # ── Similarity helpers ────────────────────────────────────────────────────────
 
+# -----------------------------------------------------------------------------
+# Similarity Calculation Helpers
+# Cosine similarity measures how similar two vectors are (0 = unrelated, 1 = identical).
+# Used to compare resume sentences against missing JD keywords.
+# -----------------------------------------------------------------------------
+
 def _cosine(a, b) -> float:
+    """Calculate cosine similarity between two vectors. Returns 0.0 to 1.0."""
     import numpy as np
     na, nb = float(np.linalg.norm(a)), float(np.linalg.norm(b))
     if na == 0 or nb == 0:
-        return 0.0
+        return 0.0   # zero vector has no direction — similarity undefined, return 0
     return float(np.dot(a, b) / (na * nb))
 
 
 def _st_similarities(query: str, sentences: list) -> list:
-    """Tier-1: neural embedding cosine similarities."""
-    texts = [query] + sentences
+    """Tier-1: neural embedding cosine similarities.
+    Encodes all texts at once (batched) for efficiency, returns similarity to query."""
+    texts = [query] + sentences          # query goes first, sentences follow
     embs  = _st_model.encode(texts, convert_to_numpy=True, show_progress_bar=False)
-    q_emb = embs[0]
+    q_emb = embs[0]                      # first embedding = query
     return [_cosine(q_emb, embs[i + 1]) for i in range(len(sentences))]
 
 
 def _tfidf_similarities(query: str, sentences: list) -> list:
-    """Tier-2: TF-IDF cosine similarities."""
+    """Tier-2: TF-IDF cosine similarities.
+    Builds a word frequency matrix and measures overlap between query and each sentence."""
     from sklearn.feature_extraction.text import TfidfVectorizer
     from sklearn.metrics.pairwise import cosine_similarity
     corpus = [query] + sentences
     try:
+        # ngram_range=(1,2): considers single words AND word pairs for better matching
         tfidf  = TfidfVectorizer(stop_words="english", min_df=1, ngram_range=(1, 2))
         matrix = tfidf.fit_transform(corpus)
-        sims   = cosine_similarity(matrix[0:1], matrix[1:])
+        sims   = cosine_similarity(matrix[0:1], matrix[1:])  # query vs all sentences
         return sims[0].tolist()
     except Exception:
-        return [0.0] * len(sentences)
+        return [0.0] * len(sentences)   # return zeros if vectorizer fails
 
 
 def _similarities(query: str, sentences: list) -> list:
+    """Route to the correct tier's similarity function."""
     if not sentences:
         return []
     tier = get_tier()
@@ -126,10 +148,13 @@ def _similarities(query: str, sentences: list) -> list:
         return _st_similarities(query, sentences)
     if tier == "tfidf":
         return _tfidf_similarities(query, sentences)
-    return [0.0] * len(sentences)
+    return [0.0] * len(sentences)   # semantic not available — return zeros
 
 
 def _threshold() -> float:
+    """Return the similarity threshold for the active tier.
+    ST threshold is higher (0.62) because neural embeddings produce denser scores.
+    TF-IDF threshold is lower (0.18) because text overlap scores are naturally smaller."""
     return _SOFT_GAP_THRESHOLD_ST if get_tier() == "st" else _SOFT_GAP_THRESHOLD_TFIDF
 
 

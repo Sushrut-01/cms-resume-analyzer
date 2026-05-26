@@ -70,19 +70,30 @@ DIVIDER = "━" * 35
 
 # ── Unified LLM caller ────────────────────────────────────────────────────────
 
+# -----------------------------------------------------------------------------
+# _call_llm — Unified AI Caller (single entry point for ALL AI calls)
+#
+# Every AI request in the entire application goes through this function.
+# It reads the active provider from ai_config.json and routes to the right API.
+# This means switching AI providers only requires changing one setting — no code change.
+#
+# IMPORTANT: All prompts passed here should already have PII stripped by
+# _strip_contact_pii() before calling this function.
+# -----------------------------------------------------------------------------
 def _call_llm(prompt: str, max_tokens: int = 200) -> str:
     """Call whichever provider is active. Raises RuntimeError with message on API failure."""
-    cfg = ai_config.load()
+    cfg      = ai_config.load()
     provider = cfg.get("provider", "ollama")
+    # Route to the correct provider implementation
     if provider == "gemini":
         return _gemini(prompt, max_tokens, cfg)
     if provider == "azure":
-        return _azure_openai(prompt, max_tokens, cfg)
+        return _azure_openai(prompt, max_tokens, cfg)   # Kforce production provider
     if provider == "groq":
         return _groq(prompt, max_tokens, cfg)
     if provider == "nvidia":
         return _nvidia_nim(prompt, max_tokens, cfg)
-    return _ollama(prompt, max_tokens, cfg)
+    return _ollama(prompt, max_tokens, cfg)              # default: local Ollama
 
 
 def _ollama(prompt: str, max_tokens: int = 200, cfg: dict = None) -> str:
@@ -807,20 +818,38 @@ _JUNK_PHRASES = [
     r"^interests?\s*:?\s*$",
 ]
 
+# -----------------------------------------------------------------------------
+# _strip_contact_pii — PII Removal (CALLED BEFORE EVERY AI REQUEST)
+#
+# Replaces all personal identifiable information with placeholder tokens.
+# This ensures that candidate personal details NEVER reach external AI providers.
+#
+# What gets replaced:
+#   email address   → [email]
+#   phone number    → [phone]
+#   LinkedIn URL    → [linkedin]
+#   GitHub URL      → [github]
+#   street address  → [address]
+#   candidate name  → [name]  (first capitalised line of resume, top 5 lines)
+#
+# The AI still receives: skills, experience bullets, education, certifications.
+# It does NOT receive: who the person is or how to contact them.
+# -----------------------------------------------------------------------------
 def _strip_contact_pii(text: str) -> str:
     """Remove name, email, phone, address, and LinkedIn URL before sending to AI."""
-    # Email
+    # Replace any email address pattern
     text = re.sub(r'\b[A-Za-z0-9._%+\-]+@[A-Za-z0-9.\-]+\.[A-Za-z]{2,}\b', '[email]', text)
-    # Phone (international and local formats)
+    # Replace phone numbers (handles +91, country codes, spaces, dashes, brackets)
     text = re.sub(r'(\+?\d[\d\s\-().]{7,}\d)', '[phone]', text)
-    # LinkedIn
+    # Replace LinkedIn profile URLs
     text = re.sub(r'(https?://)?(www\.)?linkedin\.com/in/[^\s,|>]+', '[linkedin]', text, flags=re.I)
-    # GitHub / portfolio URLs with username path
+    # Replace GitHub profile URLs
     text = re.sub(r'(https?://)?(www\.)?github\.com/[^\s,|>]+', '[github]', text, flags=re.I)
-    # Street address patterns (123 Any Street, City, State ZIP)
+    # Replace street address patterns (house number + street type keyword)
     text = re.sub(r'\b\d{1,5}\s+[A-Za-z0-9\s,.#]{5,40}(?:street|st|avenue|ave|road|rd|blvd|lane|ln|drive|dr|court|ct|way)\b',
                   '[address]', text, flags=re.I)
-    # Candidate name — first line of resume is almost always the name (capitalised, no digits)
+    # Replace candidate name — looks for Title Case words-only line in the first 5 lines
+    # Resume convention: name is always the very first line with no digits or symbols
     lines = text.split('\n')
     for i, line in enumerate(lines[:5]):
         stripped = line.strip()
@@ -877,10 +906,17 @@ def _truncate(text: str, max_chars: int) -> str:
     return text[:max_chars] if text else ""
 
 
+# -----------------------------------------------------------------------------
+# check_ollama_status / get_provider_status
+# Used by the UI to show the AI online/offline indicator.
+# check_ollama_status: legacy name, now checks ALL providers not just Ollama.
+# get_provider_status: returns detailed status dict for the settings page.
+# -----------------------------------------------------------------------------
 def check_ollama_status() -> bool:
     """Legacy check — still used by candidates router. Checks active provider."""
-    cfg = ai_config.load()
+    cfg      = ai_config.load()
     provider = cfg.get("provider", "ollama")
+    # Cloud providers: check if API key is configured (can't ping without a request)
     if provider == "gemini":
         return bool(cfg.get("gemini_api_key", ""))
     if provider == "azure":
