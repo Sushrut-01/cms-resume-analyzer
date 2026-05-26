@@ -63,6 +63,17 @@ router = APIRouter(prefix="/candidates", tags=["Candidates"])
 UPLOAD_FOLDER = os.getenv("UPLOAD_FOLDER", "./uploads")
 
 
+def _get_candidate(db, candidate_id: int, current_user):
+    """Fetch a candidate by ID with data isolation.
+    Recruiters can only access candidates they uploaded.
+    Admins and super_admins can access any candidate.
+    Returns None if not found or access denied."""
+    q = db.query(Candidate).filter(Candidate.id == candidate_id)
+    if current_user.role == "recruiter":
+        q = q.filter(Candidate.uploaded_by == current_user.id)
+    return q.first()
+
+
 # -----------------------------------------------------------------------------
 # GET /candidates/ — List Candidates
 # Recruiters: only see candidates they uploaded (uploaded_by = their user ID).
@@ -82,14 +93,14 @@ def get_all_candidates(db: Session = Depends(get_db), current_user=Depends(get_c
 # -----------------------------------------------------------------------------
 # GET /candidates/{candidate_id} — Get One Candidate
 # Returns full details for a single candidate including all resume versions.
-# Returns 404 if the candidate ID does not exist.
+# Returns 404 if the candidate does not exist OR if a recruiter tries to fetch
+# a candidate they did not upload (prevents direct ID lookup bypass).
 # -----------------------------------------------------------------------------
 @router.get("/{candidate_id}")
-def get_candidate(candidate_id: int, db: Session = Depends(get_db), _=Depends(get_current_user)):
-    c = db.query(Candidate).filter(Candidate.id == candidate_id).first()
+def get_candidate(candidate_id: int, db: Session = Depends(get_db), current_user=Depends(get_current_user)):
+    c = _get_candidate(db, candidate_id, current_user)
     if not c:
         raise HTTPException(status_code=404, detail="Candidate not found")
-
     return {"success": True, "data": to_dict(c)}
 
 
@@ -218,8 +229,8 @@ async def upload_resume(
 # Requires: AI provider must be running (checks Ollama/Azure/Groq status)
 # -----------------------------------------------------------------------------
 @router.post("/{candidate_id}/analyze")
-def analyze_candidate(candidate_id: int, db: Session = Depends(get_db), _=Depends(get_current_user)):
-    c = db.query(Candidate).filter(Candidate.id == candidate_id).first()
+def analyze_candidate(candidate_id: int, db: Session = Depends(get_db), current_user=Depends(get_current_user)):
+    c = _get_candidate(db, candidate_id, current_user)
     if not c:
         raise HTTPException(status_code=404, detail="Candidate not found")
 
@@ -309,8 +320,8 @@ def analyze_candidate(candidate_id: int, db: Session = Depends(get_db), _=Depend
 # PII stripping happens inside generate_aligned_resume() before the AI call.
 # -----------------------------------------------------------------------------
 @router.post("/{candidate_id}/generate-jd-aligned-resume")
-def generate_jd_aligned(candidate_id: int, db: Session = Depends(get_db), _=Depends(get_current_user)):
-    c = db.query(Candidate).filter(Candidate.id == candidate_id).first()
+def generate_jd_aligned(candidate_id: int, db: Session = Depends(get_db), current_user=Depends(get_current_user)):
+    c = _get_candidate(db, candidate_id, current_user)
     if not c:
         raise HTTPException(status_code=404, detail="Candidate not found")
 
@@ -412,8 +423,8 @@ def generate_jd_aligned(candidate_id: int, db: Session = Depends(get_db), _=Depe
 #   manual_resume_text (if recruiter edited) → improved_resume_text (AI output) → original
 # -----------------------------------------------------------------------------
 @router.get("/{candidate_id}/download-resume")
-def download_resume(candidate_id: int, db: Session = Depends(get_db), _=Depends(get_current_user)):
-    c = db.query(Candidate).filter(Candidate.id == candidate_id).first()
+def download_resume(candidate_id: int, db: Session = Depends(get_db), current_user=Depends(get_current_user)):
+    c = _get_candidate(db, candidate_id, current_user)
     if not c:
         raise HTTPException(status_code=404, detail="Candidate not found")
 
@@ -464,8 +475,8 @@ def download_resume(candidate_id: int, db: Session = Depends(get_db), _=Depends(
 # Also deletes the uploaded PDF file from disk if it exists.
 # -----------------------------------------------------------------------------
 @router.delete("/{candidate_id}")
-def delete_candidate(candidate_id: int, db: Session = Depends(get_db), _=Depends(get_current_user)):
-    c = db.query(Candidate).filter(Candidate.id == candidate_id).first()
+def delete_candidate(candidate_id: int, db: Session = Depends(get_db), current_user=Depends(get_current_user)):
+    c = _get_candidate(db, candidate_id, current_user)
     if not c:
         raise HTTPException(status_code=404, detail="Candidate not found")
     # Remove the uploaded PDF file from disk
@@ -485,8 +496,8 @@ def delete_candidate(candidate_id: int, db: Session = Depends(get_db), _=Depends
 # Used by recruiters to mark candidates who are ready to be submitted.
 # -----------------------------------------------------------------------------
 @router.put("/{candidate_id}/approve")
-def approve_candidate(candidate_id: int, db: Session = Depends(get_db), _=Depends(get_current_user)):
-    c = db.query(Candidate).filter(Candidate.id == candidate_id).first()
+def approve_candidate(candidate_id: int, db: Session = Depends(get_db), current_user=Depends(get_current_user)):
+    c = _get_candidate(db, candidate_id, current_user)
     if not c:
         raise HTTPException(status_code=404, detail="Candidate not found")
     c.status = "Approved"
@@ -503,9 +514,9 @@ async def update_resume(
     candidate_id: int,
     improved_text: str = Form(...),
     db: Session = Depends(get_db),
-    _=Depends(get_current_user),
+    current_user=Depends(get_current_user),
 ):
-    c = db.query(Candidate).filter(Candidate.id == candidate_id).first()
+    c = _get_candidate(db, candidate_id, current_user)
     if not c:
         raise HTTPException(status_code=404, detail="Candidate not found")
     c.improved_resume_text = improved_text
@@ -523,9 +534,9 @@ async def save_manual_resume(
     candidate_id: int,
     manual_text: str = Form(...),
     db: Session = Depends(get_db),
-    _=Depends(get_current_user),
+    current_user=Depends(get_current_user),
 ):
-    c = db.query(Candidate).filter(Candidate.id == candidate_id).first()
+    c = _get_candidate(db, candidate_id, current_user)
     if not c:
         raise HTTPException(status_code=404, detail="Candidate not found")
     c.manual_resume_text = manual_text
@@ -545,8 +556,8 @@ async def save_manual_resume(
 # Returns: verdict (Compatible/Partial/Incompatible), message, color for UI badge
 # -----------------------------------------------------------------------------
 @router.get("/{candidate_id}/role-compatibility")
-def role_compatibility_check(candidate_id: int, db: Session = Depends(get_db), _=Depends(get_current_user)):
-    c = db.query(Candidate).filter(Candidate.id == candidate_id).first()
+def role_compatibility_check(candidate_id: int, db: Session = Depends(get_db), current_user=Depends(get_current_user)):
+    c = _get_candidate(db, candidate_id, current_user)
     if not c:
         raise HTTPException(status_code=404, detail="Candidate not found")
     if not c.client_requirement:
