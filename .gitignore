@@ -14,10 +14,17 @@ database/cms.db
 # ── Uploaded candidate resumes (PII) ───────────────────────────────────────
 backend/uploads/
 
-# ── Compliance reports & test Word docs ────────────────────────────────────
+# ── Compliance reports, doc generators & test Word docs ────────────────────
 CMS_TalentAI_Compliance_Report*.docx
+K_Recruit_Compliance_Report*.docx
 Vaishali_test*.docx
 *.docx
+generate_compliance_report*.py
+
+# ── Prototype / preview HTML files (not production app) ────────────────────
+bot_new_concept_preview.html
+bot_options_preview.html
+theme_sample.html
 
 # ── Python cache ────────────────────────────────────────────────────────────
 __pycache__/
