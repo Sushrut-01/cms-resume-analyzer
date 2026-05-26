@@ -42,9 +42,9 @@ Go to: http://localhost:8000
 
 Default login:
 - Username: `admin`
-- Password: `cms@2024`
+- Password: set via `ADMIN_PASSWORD` in `backend/.env`
 
-> Change these in `backend/ai_config.json` (`login_username` / `login_password`).
+> Change `ADMIN_USERNAME` and `ADMIN_PASSWORD` in `backend/.env` before first run.
 
 ---
 
