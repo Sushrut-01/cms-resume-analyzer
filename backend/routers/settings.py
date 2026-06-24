@@ -37,17 +37,13 @@ router = APIRouter(prefix="/settings", tags=["Settings"])
 @router.get("/")
 def get_settings(_=Depends(require_admin)):
     cfg = ai_config.load()
-    # Mask all API keys before sending to the browser
-    for field, alias in [
-        ("gemini_api_key", "gemini_api_key_masked"),
-        ("azure_api_key",  "azure_api_key_masked"),
-        ("groq_api_key",   "groq_api_key_masked"),
-        ("nvidia_api_key", "nvidia_api_key_masked"),
-    ]:
-        v = cfg.get(field, "")
-        cfg[alias] = f"{v[:6]}...{v[-4:]}" if len(v) > 10 else ("set" if v else "")
-        cfg.pop(field)  # Remove the real key from the response entirely
-    return {"success": True, "data": cfg}
+    # Only return Ollama-relevant fields
+    return {"success": True, "data": {
+        "provider":            "ollama",
+        "ollama_url":          cfg.get("ollama_url", "http://localhost:11434"),
+        "ollama_model":        cfg.get("ollama_model", "qwen2.5:7b"),
+        "admin_contact_email": cfg.get("admin_contact_email", ""),
+    }}
 
 
 # -----------------------------------------------------------------------------
@@ -59,15 +55,7 @@ def get_settings(_=Depends(require_admin)):
 # -----------------------------------------------------------------------------
 @router.post("/")
 def update_settings(payload: dict, _=Depends(require_admin)):
-    # Only these specific keys are accepted — anything else is ignored
-    allowed = {
-        "provider", "ollama_url", "ollama_model",
-        "gemini_api_key", "gemini_model",
-        "azure_endpoint", "azure_api_key", "azure_deployment", "azure_api_version",
-        "groq_api_key", "groq_model",
-        "nvidia_api_key", "nvidia_model",
-        "admin_contact_email",
-    }
+    allowed = {"provider", "ollama_url", "ollama_model", "admin_contact_email"}
     updates = {k: v for k, v in payload.items() if k in allowed}
     ai_config.save(updates)
     return {"success": True}
@@ -86,95 +74,14 @@ def update_settings(payload: dict, _=Depends(require_admin)):
 @router.post("/test")
 def test_connection(_=Depends(require_admin)):
     cfg = ai_config.load()
-    provider = cfg.get("provider", "ollama")
-
-    if provider == "ollama":
-        # Ollama runs locally — check if the local service is running
-        try:
-            r = requests.get(f"{cfg['ollama_url']}/api/tags", timeout=5)
-            if r.status_code == 200:
-                models = [m["name"] for m in r.json().get("models", [])]
-                return {"success": True, "provider": "ollama", "message": f"Connected. Models: {', '.join(models[:5]) or 'none found'}"}
-            return {"success": False, "provider": "ollama", "message": f"Ollama returned HTTP {r.status_code}"}
-        except Exception as e:
-            return {"success": False, "provider": "ollama", "message": str(e)}
-
-    elif provider == "gemini":
-        # Gemini is Google's cloud AI — requires an API key
-        api_key = cfg.get("gemini_api_key", "")
-        model   = cfg.get("gemini_model", "gemini-1.5-flash")
-        if not api_key:
-            return {"success": False, "provider": "gemini", "message": "No API key saved"}
-        try:
-            url = f"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent?key={api_key}"
-            body = {"contents": [{"parts": [{"text": "Hello"}]}],
-                    "generationConfig": {"maxOutputTokens": 5}}
-            r = requests.post(url, json=body, timeout=15)
-            if r.status_code == 200:
-                return {"success": True, "provider": "gemini", "message": f"Gemini API connected. Model: {model}"}
-            err = r.json().get("error", {}).get("message", r.text[:120])
-            return {"success": False, "provider": "gemini", "message": err}
-        except Exception as e:
-            return {"success": False, "provider": "gemini", "message": str(e)}
-
-    elif provider == "azure":
-        # Azure OpenAI — Kforce's production AI provider
-        # Requires endpoint URL (from Azure portal) and API key
-        endpoint   = cfg.get("azure_endpoint", "").rstrip("/")
-        api_key    = cfg.get("azure_api_key", "")
-        deployment = cfg.get("azure_deployment", "gpt-4o")
-        api_ver    = cfg.get("azure_api_version", "2024-08-01-preview")
-        if not endpoint or not api_key:
-            return {"success": False, "provider": "azure", "message": "Azure endpoint or API key not configured"}
-        try:
-            url     = f"{endpoint}/openai/deployments/{deployment}/chat/completions?api-version={api_ver}"
-            headers = {"api-key": api_key, "Content-Type": "application/json"}
-            body    = {"messages": [{"role": "user", "content": "Hello"}], "max_tokens": 5, "temperature": 0}
-            r = requests.post(url, headers=headers, json=body, timeout=15)
-            if r.status_code == 200:
-                return {"success": True, "provider": "azure", "message": f"Azure OpenAI connected. Deployment: {deployment}"}
-            err = r.json().get("error", {}).get("message", r.text[:120])
-            return {"success": False, "provider": "azure", "message": err}
-        except Exception as e:
-            return {"success": False, "provider": "azure", "message": str(e)}
-
-    elif provider == "groq":
-        # Groq is a fast cloud inference API — requires an API key
-        api_key = cfg.get("groq_api_key", "")
-        model   = cfg.get("groq_model", "llama-3.3-70b-versatile")
-        if not api_key:
-            return {"success": False, "provider": "groq", "message": "No API key saved"}
-        try:
-            url     = "https://api.groq.com/openai/v1/chat/completions"
-            headers = {"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"}
-            body    = {"model": model, "messages": [{"role": "user", "content": "Hello"}], "max_tokens": 5, "temperature": 0}
-            r = requests.post(url, headers=headers, json=body, timeout=15)
-            if r.status_code == 200:
-                return {"success": True, "provider": "groq", "message": f"Groq connected. Model: {model}"}
-            err = r.json().get("error", {}).get("message", r.text[:120])
-            return {"success": False, "provider": "groq", "message": err}
-        except Exception as e:
-            return {"success": False, "provider": "groq", "message": str(e)}
-
-    elif provider == "nvidia":
-        # NVIDIA NIM — cloud inference using NVIDIA's API
-        api_key = cfg.get("nvidia_api_key", "")
-        model   = cfg.get("nvidia_model", "meta/llama-3.1-70b-instruct")
-        if not api_key:
-            return {"success": False, "provider": "nvidia", "message": "No API key saved"}
-        try:
-            url     = "https://integrate.api.nvidia.com/v1/chat/completions"
-            headers = {"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"}
-            body    = {"model": model, "messages": [{"role": "user", "content": "Hello"}], "max_tokens": 5, "temperature": 0}
-            r = requests.post(url, headers=headers, json=body, timeout=15)
-            if r.status_code == 200:
-                return {"success": True, "provider": "nvidia", "message": f"NVIDIA NIM connected. Model: {model}"}
-            err = r.json().get("error", {}).get("message", r.text[:120])
-            return {"success": False, "provider": "nvidia", "message": err}
-        except Exception as e:
-            return {"success": False, "provider": "nvidia", "message": str(e)}
-
-    return {"success": False, "message": "Unknown provider"}
+    try:
+        r = requests.get(f"{cfg.get('ollama_url', 'http://localhost:11434')}/api/tags", timeout=5)
+        if r.status_code == 200:
+            models = [m["name"] for m in r.json().get("models", [])]
+            return {"success": True, "provider": "ollama", "message": f"Connected. Models: {', '.join(models[:5]) or 'none pulled yet'}"}
+        return {"success": False, "provider": "ollama", "message": f"Ollama returned HTTP {r.status_code}"}
+    except Exception as e:
+        return {"success": False, "provider": "ollama", "message": str(e)}
 
 
 # -----------------------------------------------------------------------------

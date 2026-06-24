@@ -2160,31 +2160,21 @@ function PagePipeline({ aiOnline, aiProvider }) {
 
 /* ─── Settings ───────────────────────────────────────────── */
 function PageSettings({ onSave }) {
-  const [cfg, setCfg] = useState(null); const [provider, setProvider] = useState("groq");
-  const [ollamaUrl, setOllamaUrl] = useState("http://localhost:11434"); const [ollamaModel, setOllamaModel] = useState("qwen2.5:0.5b");
-  const [geminiKey, setGeminiKey] = useState(""); const [geminiModel, setGeminiModel] = useState("gemini-2.0-flash");
-  const [azureEndpoint, setAzureEndpoint] = useState(""); const [azureKey, setAzureKey] = useState(""); const [azureDeployment, setAzureDeployment] = useState("gpt-4o"); const [azureApiVersion, setAzureApiVersion] = useState("2024-08-01-preview");
-  const [groqKey, setGroqKey] = useState(""); const [groqModel, setGroqModel] = useState("meta-llama/llama-4-scout-17b-16e-instruct");
-  const [nvidiaKey, setNvidiaKey] = useState(""); const [nvidiaModel, setNvidiaModel] = useState("meta/llama-3.1-70b-instruct");
+  const [cfg, setCfg] = useState(null);
+  const [ollamaUrl, setOllamaUrl] = useState("http://localhost:11434"); const [ollamaModel, setOllamaModel] = useState("qwen2.5:7b");
   const [adminEmail, setAdminEmail] = useState("");
-  const [showGroq, setShowGroq] = useState(false); const [showNvidia, setShowNvidia] = useState(false); const [showGemini, setShowGemini] = useState(false); const [showAzure, setShowAzure] = useState(false);
   const [saving, setSaving] = useState(false); const [testing, setTesting] = useState(false); const [testResult, setTestResult] = useState(null);
   const [semStatus, setSemStatus] = useState(null);
   const [newUser, setNewUser] = useState(""); const [newPass, setNewPass] = useState(""); const [confirmPass, setConfirmPass] = useState(""); const [showPwd, setShowPwd] = useState(false); const [credMsg, setCredMsg] = useState(null); const [savingCred, setSavingCred] = useState(false);
   const load = () => api.getSettings().then(res => {
-    if (res.success&&res.data) { const d=res.data; setProvider(d.provider||"groq"); setOllamaUrl(d.ollama_url||"http://localhost:11434"); setOllamaModel(d.ollama_model||"qwen2.5:0.5b"); setGeminiModel(d.gemini_model||"gemini-2.0-flash"); setAzureEndpoint(d.azure_endpoint||""); setAzureDeployment(d.azure_deployment||"gpt-4o"); setAzureApiVersion(d.azure_api_version||"2024-08-01-preview"); setGroqModel(d.groq_model||"meta-llama/llama-4-scout-17b-16e-instruct"); setNvidiaModel(d.nvidia_model||"meta/llama-3.1-70b-instruct"); setAdminEmail(d.admin_contact_email||""); setCfg(d); }
+    if (res.success&&res.data) { const d=res.data; setOllamaUrl(d.ollama_url||"http://localhost:11434"); setOllamaModel(d.ollama_model||"qwen2.5:7b"); setAdminEmail(d.admin_contact_email||""); setCfg(d); }
   });
   useEffect(() => { load(); authFetch(`${API}/settings/semantic-status`).then(r=>r.json()).then(setSemStatus).catch(()=>{}); }, []);
-  const switchProvider = async (id) => { setProvider(id); setTestResult(null); await api.saveSettings({provider:id}); if (onSave) onSave(); };
   const handleSave = async () => {
     setSaving(true); setTestResult(null);
-    const p = { provider, ollama_url:ollamaUrl, ollama_model:ollamaModel, gemini_model:geminiModel, azure_endpoint:azureEndpoint, azure_deployment:azureDeployment, azure_api_version:azureApiVersion, groq_model:groqModel, nvidia_model:nvidiaModel, admin_contact_email:adminEmail.trim() };
-    if (geminiKey.trim()) p.gemini_api_key=geminiKey.trim();
-    if (azureKey.trim())  p.azure_api_key=azureKey.trim();
-    if (groqKey.trim())   p.groq_api_key=groqKey.trim();
-    if (nvidiaKey.trim()) p.nvidia_api_key=nvidiaKey.trim();
+    const p = { provider:"ollama", ollama_url:ollamaUrl, ollama_model:ollamaModel, admin_contact_email:adminEmail.trim() };
     const res = await api.saveSettings(p); setSaving(false);
-    if (res.success) { setGeminiKey(""); setAzureKey(""); setGroqKey(""); setNvidiaKey(""); await load(); if (onSave) onSave(); }
+    if (res.success) { await load(); if (onSave) onSave(); }
     else alert("Failed to save: "+(res.error||"Error"));
   };
   const handleTest = async () => { setTesting(true); setTestResult(null); const res = await api.testConnection(); setTesting(false); setTestResult(res); };
@@ -2238,20 +2228,16 @@ function PageSettings({ onSave }) {
       <Topbar title="Settings" sub="Configure AI provider, models, and preferences" />
       <div style={{ padding:24, maxWidth:860, background:"linear-gradient(180deg,rgba(21,88,203,0.03) 0%,transparent 160px)" }}>
         <SCard style={{ marginBottom:20, borderTop:"3px solid #1558CB" }}>
-          <SHead>AI Provider <span style={{ fontSize:11, fontWeight:400, color:C.muted, marginLeft:8 }}>Click a card to switch</span></SHead>
+          <SHead>AI Provider — Ollama (Local)</SHead>
           <div style={{ padding:20 }}>
-            <div style={{ display:"flex", gap:12, flexWrap:"wrap", marginBottom:20 }}>
-              <ProvCard id="ollama" title="Ollama" sub="Local · Free" />
-              <ProvCard id="groq"   title="Groq"   sub="Free · Fast" />
-              <ProvCard id="nvidia" title="NVIDIA" sub="Free credits" />
-              <ProvCard id="gemini" title="Gemini" sub="Free tier" />
-              <ProvCard id="azure"  title="Azure"  sub="GPT-4o · Enterprise" />
+            <div style={{ background:C.tealSoft, border:`1px solid ${C.teal}`, borderRadius:8, padding:"10px 14px", fontSize:12, color:"#065F59", display:"flex", alignItems:"center", gap:6, marginBottom:16 }}>
+              <span style={{display:"flex",flexShrink:0,color:C.teal}}>{STAT_ICONS.cpu}</span>
+              <span>Running locally — resume data never leaves the office network.</span>
             </div>
-            {provider==="ollama" && <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:14 }}><div><Label>Ollama URL</Label><Input value={ollamaUrl} onChange={e=>setOllamaUrl(e.target.value)} placeholder="http://localhost:11434"/></div><div><Label>Model</Label><Input value={ollamaModel} onChange={e=>setOllamaModel(e.target.value)} placeholder="qwen2.5:0.5b"/></div></div>}
-            {provider==="groq" && <div style={{ display:"flex", flexDirection:"column", gap:14 }}><div style={{ background:C.tealSoft, border:`1px solid ${C.teal}`, borderRadius:8, padding:"10px 14px", fontSize:12, color:"#065F59", display:"flex", alignItems:"center", gap:6 }}><span style={{display:"flex",flexShrink:0,color:C.teal}}><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg></span><span>Free at <b>console.groq.com</b> — key starts with <code>gsk_</code></span></div><KeyRow label="Groq API Key" value={groqKey} onChange={setGroqKey} masked={cfg?.groq_api_key_masked} show={showGroq} setShow={setShowGroq}/><div><Label>Model</Label><select value={groqModel} onChange={e=>setGroqModel(e.target.value)} style={{ width:"100%", padding:"9px 12px", border:`1px solid ${C.border}`, borderRadius:8, fontSize:13, background:C.bg }}><option value="meta-llama/llama-4-scout-17b-16e-instruct">Llama 4 Scout 17B — Recommended (Default)</option><option value="llama-3.3-70b-versatile">Llama 3.3 70B — Highest quality</option><option value="llama-3.1-8b-instant">Llama 3.1 8B — Fastest</option></select></div></div>}
-            {provider==="nvidia" && <div style={{ display:"flex", flexDirection:"column", gap:14 }}><div style={{ background:C.tealSoft, border:`1px solid ${C.teal}`, borderRadius:8, padding:"10px 14px", fontSize:12, color:"#065F59", display:"flex", alignItems:"center", gap:6 }}><span style={{display:"flex",flexShrink:0,color:C.teal}}>{STAT_ICONS.cpu}</span><span>1,000 free credits at <b>build.nvidia.com</b> — key starts with <code>nvapi-</code></span></div><KeyRow label="NVIDIA API Key" value={nvidiaKey} onChange={setNvidiaKey} masked={cfg?.nvidia_api_key_masked} show={showNvidia} setShow={setShowNvidia}/><div><Label>Model</Label><select value={nvidiaModel} onChange={e=>setNvidiaModel(e.target.value)} style={{ width:"100%", padding:"9px 12px", border:`1px solid ${C.border}`, borderRadius:8, fontSize:13, background:C.bg }}><option value="meta/llama-3.1-70b-instruct">meta/llama-3.1-70b-instruct (Recommended)</option><option value="meta/llama-3.3-70b-instruct">meta/llama-3.3-70b-instruct</option></select></div></div>}
-            {provider==="gemini" && <div style={{ display:"flex", flexDirection:"column", gap:14 }}><KeyRow label="Gemini API Key" value={geminiKey} onChange={setGeminiKey} masked={cfg?.gemini_api_key_masked} show={showGemini} setShow={setShowGemini}/><div><Label>Model</Label><select value={geminiModel} onChange={e=>setGeminiModel(e.target.value)} style={{ width:"100%", padding:"9px 12px", border:`1px solid ${C.border}`, borderRadius:8, fontSize:13, background:C.bg }}><option value="gemini-2.0-flash">gemini-2.0-flash (Recommended)</option><option value="gemini-1.5-flash">gemini-1.5-flash</option><option value="gemini-1.5-pro">gemini-1.5-pro</option></select></div></div>}
-            {provider==="azure" && <div style={{ display:"flex", flexDirection:"column", gap:14 }}><div style={{ background:C.blueSoft, border:"1px solid #3b82f6", borderRadius:8, padding:"10px 14px", fontSize:12, color:"#1e40af", display:"flex", alignItems:"center", gap:6 }}><span style={{display:"flex",flexShrink:0}}><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M18 10h-1.26A8 8 0 1 0 9 20h9a5 5 0 0 0 0-10z"/></svg></span><span>Get endpoint &amp; key from: <b>portal.azure.com → Azure OpenAI → Keys and Endpoint</b></span></div><div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:14 }}><div><Label>Azure Endpoint</Label><Input value={azureEndpoint} onChange={e=>setAzureEndpoint(e.target.value)} placeholder="https://YOUR-RESOURCE.openai.azure.com"/></div><div><Label>Deployment Name</Label><Input value={azureDeployment} onChange={e=>setAzureDeployment(e.target.value)} placeholder="gpt-4o"/></div></div><KeyRow label="Azure API Key" value={azureKey} onChange={setAzureKey} masked={cfg?.azure_api_key_masked} show={showAzure} setShow={setShowAzure}/><div><Label>API Version</Label><select value={azureApiVersion} onChange={e=>setAzureApiVersion(e.target.value)} style={{ width:"100%", padding:"9px 12px", border:`1px solid ${C.border}`, borderRadius:8, fontSize:13, background:C.bg }}><option value="2024-08-01-preview">2024-08-01-preview (Recommended)</option><option value="2024-05-01-preview">2024-05-01-preview</option></select></div></div>}
+            <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:14 }}>
+              <div><Label>Ollama URL</Label><Input value={ollamaUrl} onChange={e=>setOllamaUrl(e.target.value)} placeholder="http://localhost:11434"/></div>
+              <div><Label>Model</Label><Input value={ollamaModel} onChange={e=>setOllamaModel(e.target.value)} placeholder="qwen2.5:7b"/></div>
+            </div>
             <div style={{ display:"flex", gap:10, marginTop:20 }}>
               {can("action:edit_settings") && <Btn variant="success" onClick={handleSave} disabled={saving}>{saving?"Saving...":<>{STAT_ICONS.save} Save Fields</>}</Btn>}
               <Btn variant="outline" onClick={handleTest} disabled={testing}>{testing?"Testing...":<><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M18.36 6.64a9 9 0 1 1-12.73 0"/><line x1="12" y1="2" x2="12" y2="12"/></svg>Test Connection</>}</Btn>
@@ -2773,10 +2759,10 @@ function App() {
         if (d.role)        localStorage.setItem("cms_role",        d.role);
         if (d.user_id)     localStorage.setItem("cms_user_id",     String(d.user_id));
         if (d.permissions) localStorage.setItem("cms_permissions", JSON.stringify(d.permissions));
+        api.ollamaStatus().then(r => { setAiOnline(r.online||false); setAiProvider(r.provider||"groq"); });
+        api.getCandidates().then(setAllCandidates);
       })
       .catch(() => { window.location.href = "/"; });
-    api.ollamaStatus().then(r => { setAiOnline(r.online||false); setAiProvider(r.provider||"groq"); });
-    api.getCandidates().then(setAllCandidates);
   }, []);
 
   const handlePanelWidth = (w) => { setAiPanelWidth(w); localStorage.setItem("ai_panel_width", w); };
