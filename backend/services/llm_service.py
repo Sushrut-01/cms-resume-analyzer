@@ -1,47 +1,10 @@
 # =============================================================================
 # services/llm_service.py — Core AI Logic (Resume Analysis & Rewriting)
 #
-# This is the most important service file. It handles all communication with
-# the AI provider and all resume processing logic.
-#
-# Key responsibilities:
-#
-#   1. _call_llm(prompt) — unified AI caller
-#      Routes to whichever provider is configured (Ollama/Azure/Groq/Gemini/NVIDIA).
-#      All AI calls go through this single function.
-#
-#   2. _strip_contact_pii(text) — PII removal (CRITICAL for compliance)
-#      Called before EVERY AI request. Removes:
-#        - Email addresses → [email]
-#        - Phone numbers   → [phone]
-#        - LinkedIn URLs   → [linkedin]
-#        - GitHub URLs     → [github]
-#        - Street addresses → [address]
-#        - Candidate name (first capitalised line) → [name]
-#      This ensures no personal identifiable information is sent to external AI.
-#
-#   3. analyze_resume(resume_text, jd_text) — main analysis function
-#      - Strips PII from resume text
-#      - Scores the resume against the JD (keyword match + semantic score)
-#      - Identifies gaps, strengths, must-have missing, nice-to-have missing
-#      - Generates an AI-rewritten improved resume
-#      - Returns all results as a structured dict
-#
-#   4. generate_aligned_resume(resume_text, jd_text) — JD alignment
-#      - Strips PII from resume text
-#      - Rewrites the resume to better match the JD
-#      - Adds missing skills and rephrases existing bullets
-#      - Returns before/after scores and alignment history
-#
-#   5. check_ollama_status() / get_provider_status() — health checks
-#      Used by the UI to show whether the AI is online/offline.
+# All AI calls go through Ollama (local — no data leaves the office network).
 #
 # Outbound network calls:
-#   - Ollama: localhost only (no internet)
-#   - Azure OpenAI: azure_endpoint from ai_config.json (Kforce's own Azure)
-#   - Groq: api.groq.com (external cloud, sends prompt text only — no raw resume PII after strip)
-#   - Gemini: generativelanguage.googleapis.com (external cloud, same PII strip applies)
-#   - NVIDIA NIM: integrate.api.nvidia.com (external cloud, same PII strip applies)
+#   - Ollama: localhost only (http://localhost:11434) — no internet required
 # =============================================================================
 
 import requests
@@ -81,19 +44,9 @@ DIVIDER = "━" * 35
 # _strip_contact_pii() before calling this function.
 # -----------------------------------------------------------------------------
 def _call_llm(prompt: str, max_tokens: int = 200) -> str:
-    """Call whichever provider is active. Raises RuntimeError with message on API failure."""
-    cfg      = ai_config.load()
-    provider = cfg.get("provider", "ollama")
-    # Route to the correct provider implementation
-    if provider == "gemini":
-        return _gemini(prompt, max_tokens, cfg)
-    if provider == "azure":
-        return _azure_openai(prompt, max_tokens, cfg)   # Kforce production provider
-    if provider == "groq":
-        return _groq(prompt, max_tokens, cfg)
-    if provider == "nvidia":
-        return _nvidia_nim(prompt, max_tokens, cfg)
-    return _ollama(prompt, max_tokens, cfg)              # default: local Ollama
+    """Call local Ollama. Raises RuntimeError on failure."""
+    cfg = ai_config.load()
+    return _ollama(prompt, max_tokens, cfg)
 
 
 def _ollama(prompt: str, max_tokens: int = 200, cfg: dict = None) -> str:
@@ -121,115 +74,6 @@ def _ollama(prompt: str, max_tokens: int = 200, cfg: dict = None) -> str:
     return ""
 
 
-def _azure_openai(prompt: str, max_tokens: int = 200, cfg: dict = None) -> str:
-    cfg        = cfg or ai_config.load()
-    endpoint   = cfg.get("azure_endpoint", "").rstrip("/")
-    api_key    = cfg.get("azure_api_key", "")
-    deployment = cfg.get("azure_deployment", "gpt-4o")
-    api_ver    = cfg.get("azure_api_version", "2024-08-01-preview")
-    if not endpoint or not api_key:
-        return ""
-    try:
-        url     = f"{endpoint}/openai/deployments/{deployment}/chat/completions?api-version={api_ver}"
-        headers = {"api-key": api_key, "Content-Type": "application/json"}
-        body    = {
-            "messages": [{"role": "user", "content": prompt}],
-            "max_tokens": max_tokens,
-            "temperature": 0.3,
-        }
-        r = requests.post(url, headers=headers, json=body, timeout=30)
-        if r.status_code == 200:
-            return r.json()["choices"][0]["message"]["content"].strip()
-    except Exception:
-        pass
-    return ""
-
-
-def _groq(prompt: str, max_tokens: int = 200, cfg: dict = None) -> str:
-    import time as _time
-    cfg     = cfg or ai_config.load()
-    api_key = cfg.get("groq_api_key", "")
-    model   = cfg.get("groq_model", "meta-llama/llama-4-scout-17b-16e-instruct")
-    if not api_key:
-        return ""
-    url     = "https://api.groq.com/openai/v1/chat/completions"
-    headers = {"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"}
-    body    = {
-        "model":       model,
-        "messages":    [{"role": "user", "content": prompt}],
-        "max_tokens":  max_tokens,
-        "temperature": 0.3,
-    }
-    for attempt in range(2):
-        try:
-            # Llama 4 / large extraction prompts may take slightly longer — 45s timeout
-            r = requests.post(url, headers=headers, json=body, timeout=45)
-            if r.status_code == 200:
-                return r.json()["choices"][0]["message"]["content"].strip()
-            if r.status_code == 429 and attempt == 0:
-                # Respect Retry-After header; default to 10 s if absent
-                wait = int(r.headers.get("Retry-After", 10))
-                _time.sleep(min(wait, 30))  # cap at 30 s so we don't block forever
-                continue
-            err = r.json().get("error", {}).get("message", f"HTTP {r.status_code}")
-            raise RuntimeError(f"Groq error: {err}")
-        except RuntimeError:
-            raise
-        except Exception as e:
-            raise RuntimeError(f"Groq request failed: {e}")
-    raise RuntimeError("Groq rate limit: retry exhausted")
-
-
-def _nvidia_nim(prompt: str, max_tokens: int = 200, cfg: dict = None) -> str:
-    cfg     = cfg or ai_config.load()
-    api_key = cfg.get("nvidia_api_key", "")
-    model   = cfg.get("nvidia_model", "meta/llama-3.1-70b-instruct")
-    if not api_key:
-        return ""
-    try:
-        url     = "https://integrate.api.nvidia.com/v1/chat/completions"
-        headers = {"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"}
-        body    = {
-            "model":       model,
-            "messages":    [{"role": "user", "content": prompt}],
-            "max_tokens":  max_tokens,
-            "temperature": 0.3,
-        }
-        r = requests.post(url, headers=headers, json=body, timeout=30)
-        if r.status_code == 200:
-            return r.json()["choices"][0]["message"]["content"].strip()
-        err = r.json().get("error", {}).get("message", f"HTTP {r.status_code}")
-        raise RuntimeError(f"NVIDIA NIM error: {err}")
-    except RuntimeError:
-        raise
-    except Exception as e:
-        raise RuntimeError(f"NVIDIA NIM request failed: {e}")
-
-
-def _gemini(prompt: str, max_tokens: int = 200, cfg: dict = None) -> str:
-    cfg     = cfg or ai_config.load()
-    api_key = cfg.get("gemini_api_key", "")
-    model   = cfg.get("gemini_model", "gemini-1.5-flash")
-    if not api_key:
-        return ""
-    try:
-        url  = f"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent?key={api_key}"
-        body = {
-            "contents": [{"parts": [{"text": prompt}]}],
-            "generationConfig": {"maxOutputTokens": max_tokens, "temperature": 0.3},
-        }
-        r = requests.post(url, json=body, timeout=30)
-        if r.status_code == 200:
-            candidates = r.json().get("candidates", [])
-            if candidates:
-                return candidates[0]["content"]["parts"][0]["text"].strip()
-        # Raise descriptive error so callers can surface it
-        err = r.json().get("error", {}).get("message", f"HTTP {r.status_code}")
-        raise RuntimeError(f"Gemini error: {err}")
-    except RuntimeError:
-        raise
-    except Exception as e:
-        raise RuntimeError(f"Gemini request failed: {e}")
 
 # Minimal grammar-only filter — ONLY true linguistic function words.
 # Domain words (testing, monitoring, automation, compliance, etc.) are intentionally

@@ -1,18 +1,8 @@
 {
-  "provider": "groq",
+  "provider": "ollama",
   "ollama_url": "http://localhost:11434",
-  "ollama_model": "qwen2.5:0.5b",
-  "gemini_api_key": "YOUR_GEMINI_API_KEY_HERE",
-  "gemini_model": "gemini-2.0-flash",
-  "azure_endpoint": "https://YOUR_RESOURCE.openai.azure.com",
-  "azure_api_key": "YOUR_AZURE_OPENAI_KEY_HERE",
-  "azure_deployment": "gpt-4o",
-  "azure_api_version": "2024-08-01-preview",
-  "groq_api_key": "YOUR_GROQ_API_KEY_HERE",
-  "groq_model": "meta-llama/llama-4-scout-17b-16e-instruct",
-  "nvidia_api_key": "YOUR_NVIDIA_API_KEY_HERE",
-  "nvidia_model": "meta/llama-3.1-70b-instruct",
-  "admin_contact_email": "your-email@company.com",
+  "ollama_model": "qwen2.5:7b",
+  "admin_contact_email": "admin@yourcompany.com",
   "login_username": "admin",
   "login_password": "changeme"
 }
