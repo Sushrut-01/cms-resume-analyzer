@@ -188,3 +188,42 @@ def system_status(_=Depends(require_admin)):
         "installed":    installed,
         "active_config": cfg.get("ollama_model", ""),
     }
+
+
+# -----------------------------------------------------------------------------
+# GET /settings/ai-logs — Last N AI call log entries
+# Returns parsed log lines for the admin log viewer in Settings UI.
+# -----------------------------------------------------------------------------
+@router.get("/ai-logs")
+def ai_logs(limit: int = 100, _=Depends(require_admin)):
+    import os
+    log_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), "ai_calls.log")
+    if not os.path.exists(log_path):
+        return {"success": True, "logs": [], "total": 0}
+
+    with open(log_path, "r", encoding="utf-8") as f:
+        lines = f.readlines()
+
+    # Parse each line into a dict for the frontend
+    parsed = []
+    for line in reversed(lines[-500:]):  # last 500, newest first
+        line = line.strip()
+        if not line:
+            continue
+        parts = dict(p.split("=", 1) for p in line.split(" | ") if "=" in p)
+        ts = line.split(" | ")[0] if line else ""
+        parsed.append({
+            "ts":           ts,
+            "user_id":      parts.get("user_id", "—"),
+            "email":        parts.get("email", "—"),
+            "candidate_id": parts.get("candidate_id", "—"),
+            "op":           parts.get("op", "—"),
+            "model":        parts.get("model", "—"),
+            "duration":     parts.get("duration", "—"),
+            "status":       parts.get("status", "—"),
+            "extra":        parts.get("tokens", "") or parts.get("error", ""),
+        })
+        if len(parsed) >= limit:
+            break
+
+    return {"success": True, "logs": parsed, "total": len(lines)}

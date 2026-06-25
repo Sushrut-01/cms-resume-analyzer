@@ -69,7 +69,7 @@ UPLOAD_FOLDER = os.getenv("UPLOAD_FOLDER", "./uploads")
 _ollama_lock = threading.Lock()
 
 
-def _run_analysis_background(candidate_id: int):
+def _run_analysis_background(candidate_id: int, user_id: int = None, user_email: str = None):
     """Background thread: runs Ollama analysis and saves results. One at a time via lock."""
     db = SessionLocal()
     try:
@@ -86,6 +86,9 @@ def _run_analysis_background(candidate_id: int):
             result = analyze_resume(
                 resume_text=c.original_resume_text,
                 jd_text=c.client_requirement.jd_text,
+                user_id=user_id,
+                user_email=user_email,
+                candidate_id=candidate_id,
             )
 
         if not result.get("success"):
@@ -325,7 +328,7 @@ def analyze_candidate(candidate_id: int, background_tasks: BackgroundTasks, db: 
     c.updated_at = datetime.utcnow()
     db.commit()
 
-    background_tasks.add_task(_run_analysis_background, candidate_id)
+    background_tasks.add_task(_run_analysis_background, candidate_id, current_user.id, current_user.email)
 
     return {"success": True, "queued": True, "message": "Analysis started — results will appear shortly"}
 

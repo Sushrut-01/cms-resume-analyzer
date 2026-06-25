@@ -12,10 +12,55 @@ import os
 import re
 import sys
 import json
+import time
+import logging
+import threading
+from datetime import datetime
 
 # Add parent dir so we can import ai_config when running from services/
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 import ai_config
+
+# ── AI call logger ────────────────────────────────────────────────────────────
+# Logs every Ollama call with user, candidate, model, duration, result
+_LOG_PATH = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "ai_calls.log")
+_ai_logger = logging.getLogger("ai_calls")
+if not _ai_logger.handlers:
+    _ai_logger.setLevel(logging.INFO)
+    _fh = logging.FileHandler(_LOG_PATH, encoding="utf-8")
+    _fh.setFormatter(logging.Formatter("%(message)s"))
+    _ai_logger.addHandler(_fh)
+
+# Thread-local context — set once per request so all _call_llm calls in that
+# request automatically pick up who triggered it and which candidate it's for.
+_ctx = threading.local()
+
+def set_ai_context(user_id=None, user_email=None, candidate_id=None, operation="analyze"):
+    _ctx.user_id      = user_id
+    _ctx.user_email   = user_email
+    _ctx.candidate_id = candidate_id
+    _ctx.operation    = operation
+
+def _ai_ctx():
+    return {
+        "user_id":      getattr(_ctx, "user_id",      None),
+        "user_email":   getattr(_ctx, "user_email",   None),
+        "candidate_id": getattr(_ctx, "candidate_id", None),
+        "operation":    getattr(_ctx, "operation",    "llm"),
+    }
+
+def _log_ai(model: str, duration: float, status: str, extra=""):
+    ctx   = _ai_ctx()
+    ts    = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    uid   = f"user_id={ctx['user_id']}"      if ctx["user_id"]      else "user_id=—"
+    email = f"email={ctx['user_email']}"     if ctx["user_email"]   else "email=—"
+    cid   = f"candidate_id={ctx['candidate_id']}" if ctx["candidate_id"] else "candidate_id=—"
+    op    = ctx["operation"]
+    _ai_logger.info(
+        f"{ts} | {uid} | {email} | {cid} | op={op} | model={model} | "
+        f"duration={duration:.2f}s | status={status}"
+        + (f" | {extra}" if extra else "")
+    )
 
 # Semantic service — imported lazily so missing packages don't crash the app
 try:
@@ -44,15 +89,16 @@ DIVIDER = "━" * 35
 # _strip_contact_pii() before calling this function.
 # -----------------------------------------------------------------------------
 def _call_llm(prompt: str, max_tokens: int = 200) -> str:
-    """Call local Ollama. Raises RuntimeError on failure."""
+    """Call local Ollama with logging. Returns empty string on failure."""
     cfg = ai_config.load()
     return _ollama(prompt, max_tokens, cfg)
 
 
 def _ollama(prompt: str, max_tokens: int = 200, cfg: dict = None) -> str:
-    cfg = cfg or ai_config.load()
+    cfg   = cfg or ai_config.load()
     url   = cfg.get("ollama_url", "http://localhost:11434")
     model = cfg.get("ollama_model", "qwen2.5:0.5b")
+    t0    = time.time()
     try:
         payload = {
             "model":   model,
@@ -67,10 +113,15 @@ def _ollama(prompt: str, max_tokens: int = 200, cfg: dict = None) -> str:
             },
         }
         r = requests.post(f"{url}/api/generate", json=payload, timeout=120)
+        dur = time.time() - t0
         if r.status_code == 200:
-            return r.json().get("response", "").strip()
-    except Exception:
-        pass
+            result = r.json().get("response", "").strip()
+            _log_ai(model, dur, "OK", extra=f"tokens={max_tokens} response_len={len(result)}")
+            return result
+        _log_ai(model, dur, f"HTTP_{r.status_code}", extra=f"error=Ollama returned HTTP {r.status_code}")
+    except Exception as e:
+        dur = time.time() - t0
+        _log_ai(model, dur, "ERROR", extra=f"error={str(e)[:120]}")
     return ""
 
 
@@ -1020,7 +1071,8 @@ def _suggest_project_enhancements(resume_text: str, tech_missing: set) -> list:
     return suggestions[:3]
 
 
-def analyze_resume(resume_text: str, jd_text: str):
+def analyze_resume(resume_text: str, jd_text: str,
+                   user_id=None, user_email=None, candidate_id=None):
     """
     Scores resume against JD using frequency-based keyword matching.
     Works for ANY domain (QA, DevOps, Finance, Sales, etc.) without code changes.
@@ -1028,6 +1080,8 @@ def analyze_resume(resume_text: str, jd_text: str):
     MUST HAVE = keyword repeated 2+ times in JD, or in required/essential context.
     NICE TO HAVE = keyword mentioned once in JD.
     """
+    set_ai_context(user_id=user_id, user_email=user_email,
+                   candidate_id=candidate_id, operation="analyze")
     try:
         resume_text = _strip_contact_pii(resume_text)
         if not jd_text or len(jd_text.strip()) < 30:
@@ -2143,7 +2197,10 @@ def _build_structured_draft(s: dict, new_summary: str) -> str:
 # JD-ALIGNED RESUME GENERATOR
 # ─────────────────────────────────────────────────────────────────────────────
 
-def generate_aligned_resume(resume_text: str, jd_text: str):
+def generate_aligned_resume(resume_text: str, jd_text: str,
+                            user_id=None, user_email=None, candidate_id=None):
+    set_ai_context(user_id=user_id, user_email=user_email,
+                   candidate_id=candidate_id, operation="jd_align")
     try:
         resume_text = _strip_contact_pii(resume_text)
         resume_text = clean_resume_text(resume_text)
