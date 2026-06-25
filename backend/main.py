@@ -22,7 +22,7 @@ load_dotenv()
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, Response
 from pathlib import Path
 import os
 import time
@@ -216,6 +216,10 @@ app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
 @app.get("/")
 def serve_frontend():
     return FileResponse(STATIC_DIR / "index.html")
+
+@app.get("/favicon.ico")
+def favicon():
+    return Response(status_code=204)
 
 # Middleware — add no-cache headers to all HTML responses so browsers
 # always fetch the latest version instead of returning 304 Not Modified
