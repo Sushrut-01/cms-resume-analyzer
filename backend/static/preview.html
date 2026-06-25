@@ -279,6 +279,7 @@ const Avatar = ({ name="?", size=36 }) => {
 const statusMap = {
   "Approved":       { bg:"rgba(13,148,136,0.12)", color:"#065F59", dot:"#0d9488" },
   "Bot Analyzed":   { bg:"#ede9fe", color:"#5b21b6", dot:"#7c3aed" },
+  "Processing":     { bg:"#fef9c3", color:"#92400e", dot:"#f59e0b" },
   "Pending Review": { bg:"#fef9c3", color:"#854d0e", dot:"#eab308" },
   "Uploaded":       { bg:"#e0f2fe", color:"#075985", dot:"#0ea5e9" },
 };
@@ -1145,7 +1146,21 @@ function PageListing({ setPage, setSelectedId }) {
   const [expanded, setExpanded] = useState(null);
   const [page, setPage2] = useState(0); const PER = 10;
   useEffect(() => { api.getCandidates().then(setCandidates); }, []);
-  const statuses = ["All","Uploaded","Pending Review","Bot Analyzed","Approved"];
+
+  // Poll candidates every 3s if any are "Processing" — auto-updates when Ollama finishes
+  useEffect(() => {
+    const hasProcessing = candidates.some(c => c.status === "Processing");
+    if (!hasProcessing) return;
+    const timer = setInterval(() => {
+      api.getCandidates().then(updated => {
+        setCandidates(updated);
+        if (!updated.some(c => c.status === "Processing")) clearInterval(timer);
+      });
+    }, 3000);
+    return () => clearInterval(timer);
+  }, [candidates]);
+
+  const statuses = ["All","Uploaded","Pending Review","Bot Analyzed","Approved","Processing"];
   const filtered = candidates.filter(c => {
     const ms = filter==="All" || c.status===filter;
     const mq = !search || (c.name||"").toLowerCase().includes(search.toLowerCase()) || (c.role||"").toLowerCase().includes(search.toLowerCase());
@@ -1155,9 +1170,14 @@ function PageListing({ setPage, setSelectedId }) {
   const runAnalysis = async (id, e) => {
     e.stopPropagation();
     setAnalyzing(id);
-    const res = await api.analyze(id); setAnalyzing(null);
-    if (res.success) { alert("✅ AI Analysis complete!"); api.getCandidates().then(setCandidates); }
-    else alert("Analysis failed: "+(res.detail||res.error||"Error"));
+    const res = await api.analyze(id);
+    setAnalyzing(null);
+    if (res.success) {
+      // Update this candidate to "Processing" locally so spinner shows immediately
+      setCandidates(prev => prev.map(c => c.id === id ? {...c, status:"Processing"} : c));
+    } else {
+      alert("Analysis failed: " + (res.detail || res.error || "Error"));
+    }
   };
   const deleteCandidate = async (id, name, e) => {
     e.stopPropagation();
@@ -1180,7 +1200,7 @@ function PageListing({ setPage, setSelectedId }) {
             </div>
             <div style={{ display:"flex", gap:6, flexWrap:"wrap" }}>
               {statuses.map(s=>{
-                const sc={All:{c:C.primary,bg:"#EEF4FF",dot:C.primary},Uploaded:{c:"#0369a1",bg:"#e0f2fe",dot:"#0ea5e9"},"Pending Review":{c:"#78350f",bg:"#fef3c7",dot:"#d97706"},"Bot Analyzed":{c:"#5b21b6",bg:"#ede9fe",dot:"#7c3aed"},Approved:{c:"#065F59",bg:"rgba(13,148,136,0.10)",dot:"#0d9488"}}[s]||{c:C.primary,bg:C.primarySoft,dot:C.primary};
+                const sc={All:{c:C.primary,bg:"#EEF4FF",dot:C.primary},Uploaded:{c:"#0369a1",bg:"#e0f2fe",dot:"#0ea5e9"},"Pending Review":{c:"#78350f",bg:"#fef3c7",dot:"#d97706"},"Bot Analyzed":{c:"#5b21b6",bg:"#ede9fe",dot:"#7c3aed"},Approved:{c:"#065F59",bg:"rgba(13,148,136,0.10)",dot:"#0d9488"},Processing:{c:"#92400e",bg:"#fef9c3",dot:"#f59e0b"}}[s]||{c:C.primary,bg:C.primarySoft,dot:C.primary};
                 const on=filter===s;
                 return (
                   <button key={s} onClick={()=>{setFilter(s);setPage2(0);}} style={{ display:"inline-flex",alignItems:"center",gap:5,padding:"5px 13px",borderRadius:20,border:`1px solid ${on?sc.dot+"99":"#C8D4E8"}`,background:on?sc.bg:"#fff",color:on?sc.c:C.textSub,fontSize:12,fontWeight:on?700:400,cursor:"pointer",boxShadow:on?`0 0 0 2px ${sc.dot}22`:"0 1px 2px rgba(0,0,0,0.04)",transition:"all 0.15s" }}>
@@ -1212,10 +1232,17 @@ function PageListing({ setPage, setSelectedId }) {
                     </div>
                   </div>
                   <ScorePill score={c.score}/>
-                  {can("action:analyze_candidate") && <button onClick={e=>runAnalysis(c.id,e)} disabled={analyzing===c.id}
-                    style={{ padding:"5px 12px", background:"#ede9fe", color:"#5b21b6", border:"1px solid #7c3aed44", borderRadius:7, fontSize:11, fontWeight:600, cursor:"pointer", opacity:analyzing===c.id?0.5:1, whiteSpace:"nowrap", flexShrink:0 }}>
-                    {analyzing===c.id?<span style={{display:"flex",alignItems:"center",gap:4}}><svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{animation:"spin 1s linear infinite"}}><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>Analyzing</span>:"▶ Analyze"}
-                  </button>}
+                  {can("action:analyze_candidate") && (() => {
+                    const isProcessing = c.status === "Processing" || analyzing === c.id;
+                    return (
+                      <button onClick={e=>runAnalysis(c.id,e)} disabled={isProcessing}
+                        style={{ padding:"5px 12px", background:isProcessing?"#fef9c3":"#ede9fe", color:isProcessing?"#92400e":"#5b21b6", border:`1px solid ${isProcessing?"#f59e0b44":"#7c3aed44"}`, borderRadius:7, fontSize:11, fontWeight:600, cursor:isProcessing?"not-allowed":"pointer", whiteSpace:"nowrap", flexShrink:0 }}>
+                        {isProcessing
+                          ? <span style={{display:"flex",alignItems:"center",gap:4}}><svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{animation:"spin 1s linear infinite"}}><path d="M21 12a9 9 0 1 1-6.219-8.56"/></svg>Processing…</span>
+                          : "▶ Analyse"}
+                      </button>
+                    );
+                  })()}
                   <span style={{ fontSize:16, color:C.muted, flexShrink:0, marginLeft:2, userSelect:"none" }}>{expanded===c.id?"▲":"▼"}</span>
                 </div>
                 {/* Expanded detail */}
@@ -1307,11 +1334,27 @@ function PageReview({ setPage, selectedId, startAI, stopAI }) {
     setManualText(c.manual_resume_text||"");
   };
   const runAnalysis = async () => {
-    if (!candidate) return; setAnalyzing(true);
-    startAI && startAI("Analyzing resume for " + (candidate.name||"candidate") + "...");
-    const res = await api.analyze(candidate.id); setAnalyzing(false); stopAI && stopAI();
-    if (res.success) { loadCandidate(candidate.id); alert("✅ Analysis complete!"); }
-    else alert("Failed: "+(res.detail||res.error));
+    if (!candidate) return;
+    setAnalyzing(true);
+    startAI && startAI("Queuing analysis for " + (candidate.name||"candidate") + "...");
+    const res = await api.analyze(candidate.id);
+    if (res.success) {
+      setCandidate(prev => ({...prev, status:"Processing"}));
+      // Poll until Processing is done
+      const poll = setInterval(async () => {
+        const updated = await api.getCandidate(candidate.id);
+        if (updated && updated.status !== "Processing") {
+          clearInterval(poll);
+          setAnalyzing(false);
+          stopAI && stopAI();
+          loadCandidate(candidate.id);
+        }
+      }, 3000);
+    } else {
+      setAnalyzing(false);
+      stopAI && stopAI();
+      alert("Failed: " + (res.detail || res.error));
+    }
   };
   const handleApprove = async () => { if (!candidate) return; const res = await api.approve(candidate.id); if (res.success) { loadCandidate(candidate.id); alert("✅ Approved!"); } };
   const handleSave = async () => { if (!candidate) return; setSaving(true); const res = await api.updateResume(candidate.id, editText); setSaving(false); if (res.success) alert("✅ Saved!"); };

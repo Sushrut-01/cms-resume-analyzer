@@ -31,6 +31,7 @@ from fastapi import (
     Form,
     Depends,
     HTTPException,
+    BackgroundTasks,
 )
 from fastapi.responses import Response
 from sqlalchemy.orm import Session
@@ -38,8 +39,9 @@ from datetime import datetime
 import os
 import shutil
 import json
+import threading
 
-from database import get_db
+from database import get_db, SessionLocal
 from deps import get_current_user
 from models.candidate import Candidate
 from models.client_requirement import ClientRequirement
@@ -61,6 +63,75 @@ router = APIRouter(prefix="/candidates", tags=["Candidates"])
 
 # Upload folder path — set via UPLOAD_FOLDER in .env, defaults to ./uploads
 UPLOAD_FOLDER = os.getenv("UPLOAD_FOLDER", "./uploads")
+
+# Global lock — ensures only one Ollama call runs at a time
+# Multiple recruiters can click Analyse simultaneously; requests queue here
+_ollama_lock = threading.Lock()
+
+
+def _run_analysis_background(candidate_id: int):
+    """Background thread: runs Ollama analysis and saves results. One at a time via lock."""
+    db = SessionLocal()
+    try:
+        c = db.query(Candidate).filter(Candidate.id == candidate_id).first()
+        if not c or c.status != "Processing":
+            return
+
+        with _ollama_lock:  # Queue — only one Ollama call at a time
+            # Re-fetch inside lock in case status changed while waiting
+            db.refresh(c)
+            if c.status != "Processing":
+                return
+
+            result = analyze_resume(
+                resume_text=c.original_resume_text,
+                jd_text=c.client_requirement.jd_text,
+            )
+
+        if not result.get("success"):
+            c.status = "Uploaded"  # Reset so recruiter can retry
+            db.commit()
+            return
+
+        data = result["data"]
+        c.score                = data.get("score", 0)
+        c.match_level          = data.get("match_level", "")
+        c.improved_resume_text = data.get("final_resume", "")
+        c.recommendations      = json.dumps(data.get("recommendations", []))
+        c.gaps                 = json.dumps(data.get("gaps", []))
+        c.strengths            = json.dumps(data.get("strengths", []))
+        c.must_have_missing    = json.dumps(data.get("must_have_missing", []))
+        c.nice_to_have_missing = json.dumps(data.get("nice_to_have_missing", []))
+        c.project_suggestions  = json.dumps(data.get("project_suggestions", []))
+        c.detected_domain      = data.get("detected_domain", "")
+        c.injection_supported  = 1 if data.get("injection_supported", True) else 0
+        c.soft_gaps            = json.dumps(data.get("soft_gaps", []))
+        c.semantic_score       = data.get("semantic_score")
+        c.candidate_function   = data.get("candidate_function", "")
+        c.jd_function          = data.get("jd_function", "")
+        compat = data.get("role_compatibility", {})
+        c.role_compatibility   = compat.get("verdict", "") if isinstance(compat, dict) else ""
+        c.status               = "Bot Analyzed"
+        c.resume_version_type  = "ANALYZED"
+        c.updated_at           = datetime.utcnow()
+
+        db.add(ResumeVersion(
+            candidate_id=c.id,
+            version_type="ANALYZED",
+            content=c.improved_resume_text,
+            linked_jd_id=c.client_requirement.id,
+        ))
+        db.commit()
+    except Exception:
+        try:
+            c = db.query(Candidate).filter(Candidate.id == candidate_id).first()
+            if c and c.status == "Processing":
+                c.status = "Uploaded"
+                db.commit()
+        except Exception:
+            pass
+    finally:
+        db.close()
 
 
 def _get_candidate(db, candidate_id: int, current_user):
@@ -229,86 +300,34 @@ async def upload_resume(
 # Requires: AI provider must be running (checks Ollama/Azure/Groq status)
 # -----------------------------------------------------------------------------
 @router.post("/{candidate_id}/analyze")
-def analyze_candidate(candidate_id: int, db: Session = Depends(get_db), current_user=Depends(get_current_user)):
+def analyze_candidate(candidate_id: int, background_tasks: BackgroundTasks, db: Session = Depends(get_db), current_user=Depends(get_current_user)):
     c = _get_candidate(db, candidate_id, current_user)
     if not c:
         raise HTTPException(status_code=404, detail="Candidate not found")
 
     if not c.client_requirement:
-        raise HTTPException(
-            status_code=400,
-            detail="Client requirement (JD) is not selected",
-        )
+        raise HTTPException(status_code=400, detail="Client requirement (JD) is not selected")
 
     if not c.client_requirement.active:
-        raise HTTPException(
-            status_code=400,
-            detail="Client requirement is not active",
-        )
+        raise HTTPException(status_code=400, detail="Client requirement is not active")
 
     if len(c.client_requirement.jd_text.strip()) < 30:
-        raise HTTPException(
-            status_code=400,
-            detail="Client requirement text is too short",
-        )
+        raise HTTPException(status_code=400, detail="Client requirement text is too short")
 
-    # Verify the AI provider is online before sending data
     if not check_ollama_status():
-        raise HTTPException(
-            status_code=503,
-            detail="Ollama LLM is not running",
-        )
+        raise HTTPException(status_code=503, detail="Ollama is not running — start Ollama and try again")
 
-    # Run AI analysis — PII stripping happens inside analyze_resume()
-    result = analyze_resume(
-        resume_text=c.original_resume_text,
-        jd_text=c.client_requirement.jd_text,
-    )
+    if c.status == "Processing":
+        return {"success": True, "queued": True, "message": "Analysis already in progress"}
 
-    if not result.get("success"):
-        raise HTTPException(
-            status_code=500,
-            detail=result.get("error", "AI analysis failed"),
-        )
-
-    data = result["data"]
-
-    # Save all AI analysis results to the candidate record
-    c.score = data.get("score", 0)
-    c.match_level = data.get("match_level", "")
-    c.improved_resume_text = data.get("final_resume", "")
-    c.recommendations = json.dumps(data.get("recommendations", []))
-    c.gaps = json.dumps(data.get("gaps", []))
-    c.strengths = json.dumps(data.get("strengths", []))
-    c.must_have_missing = json.dumps(data.get("must_have_missing", []))
-    c.nice_to_have_missing = json.dumps(data.get("nice_to_have_missing", []))
-    c.project_suggestions = json.dumps(data.get("project_suggestions", []))
-    c.detected_domain = data.get("detected_domain", "")
-    c.injection_supported = 1 if data.get("injection_supported", True) else 0
-    c.soft_gaps = json.dumps(data.get("soft_gaps", []))
-    c.semantic_score = data.get("semantic_score")
-    c.candidate_function = data.get("candidate_function", "")
-    c.jd_function        = data.get("jd_function", "")
-    compat = data.get("role_compatibility", {})
-    c.role_compatibility = compat.get("verdict", "") if isinstance(compat, dict) else ""
-    c.status = "Bot Analyzed"
-    c.resume_version_type = "ANALYZED"
+    # Set status to Processing immediately and return — analysis runs in background
+    c.status = "Processing"
     c.updated_at = datetime.utcnow()
-
-    # Save a version snapshot of the AI-improved resume
-    db.add(
-        ResumeVersion(
-            candidate_id=c.id,
-            version_type="ANALYZED",
-            content=c.improved_resume_text,
-            linked_jd_id=c.client_requirement.id,
-        )
-    )
-
     db.commit()
-    db.refresh(c)
 
-    return {"success": True, "data": data}
+    background_tasks.add_task(_run_analysis_background, candidate_id)
+
+    return {"success": True, "queued": True, "message": "Analysis started — results will appear shortly"}
 
 
 # -----------------------------------------------------------------------------
