@@ -2158,6 +2158,119 @@ function PagePipeline({ aiOnline, aiProvider }) {
   );
 }
 
+/* ─── Model Manager ─────────────────────────────────────── */
+const SUGGESTED_MODELS = [
+  { name:"qwen2.5:7b",       ram:"~5 GB",  note:"Dev laptop (16GB) — Recommended" },
+  { name:"qwen2.5:32b",      ram:"~20 GB", note:"Server laptop (64GB) — Recommended" },
+  { name:"llama3.1:8b",      ram:"~6 GB",  note:"Good general purpose alternative" },
+  { name:"deepseek-r1:14b",  ram:"~9 GB",  note:"Strong reasoning & scoring" },
+  { name:"qwen2.5:72b",      ram:"~45 GB", note:"Highest quality — 64GB+ only" },
+  { name:"deepseek-r1:32b",  ram:"~20 GB", note:"Server — strong reasoning" },
+];
+
+function ModelManager({ ollamaUrl, activeModel, onModelChange }) {
+  const [installed, setInstalled]   = React.useState([]);
+  const [pulling, setPulling]       = React.useState(false);
+  const [pullModel, setPullModel]   = React.useState("");
+  const [pullStatus, setPullStatus] = React.useState("");
+  const [pullError, setPullError]   = React.useState("");
+  const [deleting, setDeleting]     = React.useState("");
+
+  const loadInstalled = () => {
+    fetch(`${ollamaUrl}/api/tags`).then(r=>r.json()).then(d=>{
+      setInstalled((d.models||[]).map(m=>({ name:m.name, size:((m.size||0)/1e9).toFixed(1)+"GB" })));
+    }).catch(()=>setInstalled([]));
+  };
+  React.useEffect(()=>{ loadInstalled(); }, [ollamaUrl]);
+
+  const handlePull = async (modelName) => {
+    if (!modelName.trim()) return;
+    setPulling(true); setPullStatus("Starting download..."); setPullError("");
+    // Delete all currently installed models first to free RAM
+    for (const m of installed) {
+      await fetch(`${ollamaUrl}/api/delete`, { method:"DELETE", headers:{"Content-Type":"application/json"}, body:JSON.stringify({name:m.name}) }).catch(()=>{});
+    }
+    setPullStatus("Pulling model (this may take a while for large models)...");
+    try {
+      const r = await fetch(`${ollamaUrl}/api/pull`, { method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify({name:modelName, stream:false}) });
+      if (r.ok) {
+        setPullStatus("Model ready!");
+        onModelChange(modelName);
+        loadInstalled();
+        setPullModel("");
+      } else { setPullError("Pull failed — check model name"); }
+    } catch(e) { setPullError("Cannot reach Ollama — is it running?"); }
+    setPulling(false);
+  };
+
+  const handleDelete = async (modelName) => {
+    setDeleting(modelName);
+    await fetch(`${ollamaUrl}/api/delete`, { method:"DELETE", headers:{"Content-Type":"application/json"}, body:JSON.stringify({name:modelName}) }).catch(()=>{});
+    if (activeModel === modelName) onModelChange("");
+    loadInstalled(); setDeleting("");
+  };
+
+  return (
+    <div style={{ padding:20 }}>
+      <div style={{ fontSize:12, color:C.muted, marginBottom:16 }}>
+        Pulling a new model <b>automatically removes the current model</b> to free RAM. Only one model runs at a time.
+      </div>
+
+      {/* Installed models */}
+      {installed.length > 0 && (
+        <div style={{ marginBottom:20 }}>
+          <Label>Installed Models</Label>
+          <div style={{ display:"flex", flexDirection:"column", gap:8, marginTop:8 }}>
+            {installed.map(m => (
+              <div key={m.name} style={{ display:"flex", alignItems:"center", gap:10, padding:"10px 14px", background:m.name===activeModel?C.tealSoft:C.bg, border:`1.5px solid ${m.name===activeModel?C.teal:C.border}`, borderRadius:8 }}>
+                <div style={{ flex:1 }}>
+                  <span style={{ fontSize:13, fontWeight:600, color:C.text }}>{m.name}</span>
+                  <span style={{ fontSize:11, color:C.muted, marginLeft:10 }}>{m.size}</span>
+                  {m.name===activeModel && <span style={{ marginLeft:8, fontSize:10, fontWeight:700, background:C.teal, color:"#fff", padding:"2px 8px", borderRadius:10 }}>ACTIVE</span>}
+                </div>
+                {m.name!==activeModel && <button onClick={()=>onModelChange(m.name)} style={{ padding:"5px 12px", borderRadius:6, border:`1px solid ${C.teal}`, background:C.tealSoft, color:C.teal, cursor:"pointer", fontSize:12, fontWeight:600 }}>Set Active</button>}
+                <button onClick={()=>handleDelete(m.name)} disabled={deleting===m.name} style={{ padding:"5px 12px", borderRadius:6, border:"1px solid #ef4444", background:"#fff0f0", color:"#ef4444", cursor:"pointer", fontSize:12, fontWeight:600 }}>{deleting===m.name?"Deleting...":"Remove"}</button>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+      {installed.length === 0 && <div style={{ padding:"12px 14px", background:C.bg, borderRadius:8, fontSize:12, color:C.muted, marginBottom:16 }}>No models installed yet. Pull one below.</div>}
+
+      {/* Pull new model */}
+      <Label>Pull New Model</Label>
+      <div style={{ display:"flex", gap:8, marginTop:8, marginBottom:12 }}>
+        <input value={pullModel} onChange={e=>setPullModel(e.target.value)} placeholder="e.g. qwen2.5:7b"
+          style={{ flex:1, padding:"9px 12px", border:`1.5px solid ${C.border}`, borderRadius:8, fontSize:13, background:C.bg }} />
+        <button onClick={()=>handlePull(pullModel)} disabled={pulling||!pullModel.trim()}
+          style={{ padding:"9px 18px", borderRadius:8, background:pulling?"#94a3b8":"linear-gradient(135deg,#7c3aed,#6d28d9)", color:"#fff", border:"none", cursor:pulling?"not-allowed":"pointer", fontSize:13, fontWeight:600, whiteSpace:"nowrap" }}>
+          {pulling ? "Pulling..." : "Pull & Activate"}
+        </button>
+      </div>
+      {pullStatus && <div style={{ padding:"8px 12px", background:C.tealSoft, border:`1px solid ${C.teal}`, borderRadius:7, fontSize:12, color:C.teal, marginBottom:8 }}>{pullStatus}</div>}
+      {pullError  && <div style={{ padding:"8px 12px", background:"#fff0f0", border:"1px solid #ef4444", borderRadius:7, fontSize:12, color:"#ef4444", marginBottom:8 }}>{pullError}</div>}
+
+      {/* Suggested models */}
+      <Label>Suggested Models</Label>
+      <div style={{ display:"flex", flexDirection:"column", gap:6, marginTop:8 }}>
+        {SUGGESTED_MODELS.map(m => (
+          <div key={m.name} style={{ display:"flex", alignItems:"center", gap:10, padding:"9px 12px", background:C.bg, border:`1px solid ${C.border}`, borderRadius:7 }}>
+            <div style={{ flex:1 }}>
+              <span style={{ fontSize:12, fontWeight:700, color:C.text, fontFamily:"monospace" }}>{m.name}</span>
+              <span style={{ fontSize:11, color:C.muted, marginLeft:10 }}>{m.ram}</span>
+              <div style={{ fontSize:11, color:C.muted, marginTop:2 }}>{m.note}</div>
+            </div>
+            <button onClick={()=>{ setPullModel(m.name); handlePull(m.name); }} disabled={pulling}
+              style={{ padding:"5px 14px", borderRadius:6, background:"linear-gradient(135deg,#7c3aed,#6d28d9)", color:"#fff", border:"none", cursor:pulling?"not-allowed":"pointer", fontSize:12, fontWeight:600, flexShrink:0 }}>
+              Pull
+            </button>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 /* ─── Settings ───────────────────────────────────────────── */
 function PageSettings({ onSave }) {
   const [cfg, setCfg] = useState(null);
@@ -2244,6 +2357,11 @@ function PageSettings({ onSave }) {
             </div>
             {testResult && <div style={{ marginTop:14, background:testResult.success?C.tealSoft:C.primarySoft, border:`1px solid ${testResult.success?C.teal:C.primary}`, borderRadius:8, padding:"10px 16px", fontSize:13, color:testResult.success?C.teal:C.primary, display:"flex", alignItems:"center", gap:8 }}><span style={{display:"flex",flexShrink:0}}>{testResult.success?STAT_ICONS.ok:STAT_ICONS.xmark}</span>{testResult.provider?.toUpperCase()} — {testResult.message}</div>}
           </div>
+        </SCard>
+
+        <SCard style={{ marginBottom:20, borderTop:"3px solid #7c3aed" }}>
+          <SHead>{STAT_ICONS.cpu} Model Manager</SHead>
+          <ModelManager ollamaUrl={ollamaUrl} activeModel={ollamaModel} onModelChange={m=>{ setOllamaModel(m); api.saveSettings({provider:"ollama", ollama_url:ollamaUrl, ollama_model:m}); if(onSave) onSave(); }} />
         </SCard>
 
         <SCard style={{ marginBottom:20, borderTop:"3px solid #0d9488" }}>
