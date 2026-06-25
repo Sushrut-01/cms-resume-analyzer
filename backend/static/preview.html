@@ -2601,27 +2601,32 @@ function PageSettings({ onSave }) {
     <div className="fade-in">
       <Topbar title="Settings" sub="Configure AI provider, models, and preferences" />
       <div style={{ padding:24, maxWidth:860, background:"linear-gradient(180deg,rgba(21,88,203,0.03) 0%,transparent 160px)" }}>
-        <SCard style={{ marginBottom:20, borderTop:"3px solid #1558CB" }}>
-          <SHead>AI Provider — Ollama (Local)</SHead>
-          <div style={{ padding:20 }}>
-            <div style={{ background:C.tealSoft, border:`1px solid ${C.teal}`, borderRadius:8, padding:"10px 14px", fontSize:12, color:"#065F59", display:"flex", alignItems:"center", gap:6, marginBottom:16 }}>
-              <span style={{display:"flex",flexShrink:0,color:C.teal}}>{STAT_ICONS.cpu}</span>
-              <span>Running locally — resume data never leaves the office network.</span>
-            </div>
-            <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:14 }}>
-              <div><Label>Ollama URL</Label><Input value={ollamaUrl} onChange={e=>setOllamaUrl(e.target.value)} placeholder="http://localhost:11434"/></div>
-              <div><Label>Model</Label><Input value={ollamaModel} onChange={e=>setOllamaModel(e.target.value)} placeholder="qwen2.5:7b"/></div>
-            </div>
-            <div style={{ display:"flex", gap:10, marginTop:20 }}>
-              {can("action:edit_settings") && <Btn variant="success" onClick={handleSave} disabled={saving}>{saving?"Saving...":<>{STAT_ICONS.save} Save Fields</>}</Btn>}
-              <Btn variant="outline" onClick={handleTest} disabled={testing}>{testing?"Testing...":<><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M18.36 6.64a9 9 0 1 1-12.73 0"/><line x1="12" y1="2" x2="12" y2="12"/></svg>Test Connection</>}</Btn>
-            </div>
-            {testResult && <div style={{ marginTop:14, background:testResult.success?C.tealSoft:C.primarySoft, border:`1px solid ${testResult.success?C.teal:C.primary}`, borderRadius:8, padding:"10px 16px", fontSize:13, color:testResult.success?C.teal:C.primary, display:"flex", alignItems:"center", gap:8 }}><span style={{display:"flex",flexShrink:0}}>{testResult.success?STAT_ICONS.ok:STAT_ICONS.xmark}</span>{testResult.provider?.toUpperCase()} — {testResult.message}</div>}
-          </div>
-        </SCard>
-
         <SCard style={{ marginBottom:20, borderTop:"3px solid #7c3aed" }}>
-          <SHead>{STAT_ICONS.cpu} Model Manager</SHead>
+          <SHead action={
+            <div style={{ display:"flex", gap:8, alignItems:"center" }}>
+              {can("action:edit_settings") && <Btn variant="success" small onClick={handleSave} disabled={saving}>{saving?"Saving...":<>{STAT_ICONS.save} Save</>}</Btn>}
+              <Btn variant="outline" small onClick={handleTest} disabled={testing}>
+                {testing?"Testing…":<><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{marginRight:4}}><path d="M18.36 6.64a9 9 0 1 1-12.73 0"/><line x1="12" y1="2" x2="12" y2="12"/></svg>Test Connection</>}
+              </Btn>
+            </div>
+          }>{STAT_ICONS.cpu} Ollama — Model Manager</SHead>
+
+          {/* Ollama URL — compact row at top */}
+          <div style={{ padding:"12px 20px 0", display:"flex", gap:12, alignItems:"flex-end", borderBottom:`1px solid ${C.borderSoft}`, paddingBottom:14 }}>
+            <div style={{ flex:1 }}>
+              <Label>Ollama URL</Label>
+              <Input value={ollamaUrl} onChange={e=>setOllamaUrl(e.target.value)} placeholder="http://localhost:11434"/>
+            </div>
+            <div style={{ fontSize:11, color:"#065F59", background:C.tealSoft, border:`1px solid ${C.teal}`, borderRadius:7, padding:"6px 12px", whiteSpace:"nowrap", display:"flex", alignItems:"center", gap:5 }}>
+              {STAT_ICONS.cpu} Local only — data never leaves office network
+            </div>
+          </div>
+          {testResult && (
+            <div style={{ margin:"0 20px", marginTop:10, background:testResult.success?C.tealSoft:C.primarySoft, border:`1px solid ${testResult.success?C.teal:C.primary}`, borderRadius:8, padding:"9px 14px", fontSize:12, color:testResult.success?C.teal:C.primary, display:"flex", alignItems:"center", gap:8 }}>
+              <span style={{display:"flex",flexShrink:0}}>{testResult.success?STAT_ICONS.ok:STAT_ICONS.xmark}</span>
+              <span><b>OLLAMA</b> — {testResult.message}</span>
+            </div>
+          )}
           <ModelManager ollamaUrl={ollamaUrl} activeModel={ollamaModel} onModelChange={m=>{ setOllamaModel(m); api.saveSettings({provider:"ollama", ollama_url:ollamaUrl, ollama_model:m}); if(onSave) onSave(); }} />
         </SCard>
 
