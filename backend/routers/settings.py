@@ -227,3 +227,53 @@ def ai_logs(limit: int = 100, _=Depends(require_admin)):
             break
 
     return {"success": True, "logs": parsed, "total": len(lines)}
+
+
+# -----------------------------------------------------------------------------
+# Ollama proxy endpoints — browser can't call Ollama directly (CORS).
+# These endpoints proxy model management calls server-side.
+# -----------------------------------------------------------------------------
+
+@router.get("/ollama/tags")
+def ollama_tags(_=Depends(require_admin)):
+    cfg = ai_config.load()
+    url = cfg.get("ollama_url", "http://localhost:11434")
+    try:
+        r = requests.get(f"{url}/api/tags", timeout=5)
+        return r.json()
+    except Exception as e:
+        return {"models": [], "error": str(e)}
+
+
+@router.post("/ollama/pull")
+def ollama_pull(payload: dict, _=Depends(require_admin)):
+    cfg = ai_config.load()
+    url = cfg.get("ollama_url", "http://localhost:11434")
+    model = payload.get("name", "")
+    if not model:
+        return {"success": False, "error": "Model name required"}
+    try:
+        r = requests.post(f"{url}/api/pull",
+                          json={"name": model, "stream": False},
+                          timeout=1800)  # 30 min timeout for large models
+        if r.status_code == 200:
+            # Save new model as active
+            ai_config.save({"ollama_model": model})
+            return {"success": True, "model": model}
+        return {"success": False, "error": f"Ollama returned HTTP {r.status_code}"}
+    except Exception as e:
+        return {"success": False, "error": str(e)}
+
+
+@router.delete("/ollama/delete")
+def ollama_delete(payload: dict, _=Depends(require_admin)):
+    cfg = ai_config.load()
+    url = cfg.get("ollama_url", "http://localhost:11434")
+    model = payload.get("name", "")
+    try:
+        r = requests.delete(f"{url}/api/delete",
+                            json={"name": model},
+                            timeout=30)
+        return {"success": r.status_code in (200, 404)}
+    except Exception as e:
+        return {"success": False, "error": str(e)}

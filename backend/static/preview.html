@@ -2378,36 +2378,37 @@ function ModelManager({ ollamaUrl, activeModel, onModelChange }) {
     if (!modelName.trim() || pulling) return;
     setPulling(true); setPullPhase("removing"); setPullMsg("Removing current model to free RAM...");
 
-    // Remove all installed models first
+    // Remove all installed models via backend proxy (avoids CORS)
     const installed = sysStatus?.installed || [];
     for (const m of installed) {
-      await fetch(`${ollamaUrl}/api/delete`, { method:"DELETE", headers:{"Content-Type":"application/json"}, body:JSON.stringify({name:m.name}) }).catch(()=>{});
+      await authFetch(`${API}/settings/ollama/delete`, { method:"DELETE", headers:{"Content-Type":"application/json"}, body:JSON.stringify({name:m.name}) }).catch(()=>{});
     }
     await loadStatus();
 
     setPullPhase("downloading"); setPullMsg(`Downloading ${modelName} — this may take several minutes for large models...`);
     try {
-      const r = await fetch(`${ollamaUrl}/api/pull`, { method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify({name:modelName, stream:false}) });
-      if (r.ok) {
+      const r = await authFetch(`${API}/settings/ollama/pull`, { method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify({name:modelName}) });
+      const data = await r.json();
+      if (data.success) {
         setPullPhase("done"); setPullMsg(`${modelName} is ready!`);
         onModelChange(modelName);
         loadStatus();
         setPullModel("");
         showToast(`✅ ${modelName} installed and activated!`, true);
       } else {
-        setPullPhase("error"); setPullMsg("Pull failed — check model name and try again");
+        setPullPhase("error"); setPullMsg(data.error || "Pull failed — check model name and try again");
         showToast("❌ Model pull failed", false);
       }
     } catch(e) {
-      setPullPhase("error"); setPullMsg("Cannot reach Ollama — make sure Ollama is running");
-      showToast("❌ Cannot reach Ollama", false);
+      setPullPhase("error"); setPullMsg("Cannot reach server — make sure Ollama is running on this machine");
+      showToast("❌ Pull failed", false);
     }
     setPulling(false);
   };
 
   const handleUninstall = async (modelName) => {
     setDeleting(modelName);
-    await fetch(`${ollamaUrl}/api/delete`, { method:"DELETE", headers:{"Content-Type":"application/json"}, body:JSON.stringify({name:modelName}) }).catch(()=>{});
+    await authFetch(`${API}/settings/ollama/delete`, { method:"DELETE", headers:{"Content-Type":"application/json"}, body:JSON.stringify({name:modelName}) }).catch(()=>{});
     if (activeModel === modelName) onModelChange("");
     loadStatus();
     setDeleting("");
