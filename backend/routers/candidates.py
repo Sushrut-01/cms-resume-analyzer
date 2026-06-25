@@ -444,8 +444,28 @@ def generate_jd_aligned(candidate_id: int, db: Session = Depends(get_db), curren
 # Priority of resume content used:
 #   manual_resume_text (if recruiter edited) → improved_resume_text (AI output) → original
 # -----------------------------------------------------------------------------
+def _get_user_for_download(token: str = None, db: Session = Depends(get_db), creds=Depends(__import__('fastapi').security.HTTPBearer(auto_error=False))):
+    """Auth for download — accepts token from query param OR Authorization header."""
+    from jose import jwt, JWTError
+    from models.user import User
+    from deps import SECRET_KEY, ALGORITHM
+    raw = token or (creds.credentials if creds else None)
+    if not raw:
+        raise HTTPException(status_code=401, detail="Not authenticated")
+    try:
+        payload = jwt.decode(raw, SECRET_KEY, algorithms=[ALGORITHM])
+        user_id = payload.get("sub")
+        if not user_id:
+            raise HTTPException(status_code=401, detail="Invalid token")
+    except JWTError:
+        raise HTTPException(status_code=401, detail="Session expired")
+    user = db.query(User).filter(User.id == int(user_id), User.is_active == True).first()
+    if not user:
+        raise HTTPException(status_code=401, detail="User not found")
+    return user
+
 @router.get("/{candidate_id}/download-resume")
-def download_resume(candidate_id: int, db: Session = Depends(get_db), current_user=Depends(get_current_user)):
+def download_resume(candidate_id: int, db: Session = Depends(get_db), current_user=Depends(_get_user_for_download)):
     c = _get_candidate(db, candidate_id, current_user)
     if not c:
         raise HTTPException(status_code=404, detail="Candidate not found")
