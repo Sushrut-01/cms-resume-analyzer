@@ -1758,15 +1758,35 @@ function PageJDAlign({ setPage, selectedId, alignState, setAlignState, startAI, 
   };
 
   const handleGenerate = async () => {
-    if (!candidate) return; setGenerating(true);
-    startAI && startAI("Generating JD-aligned resume for " + (candidate.name||"candidate") + "...");
-    const res = await api.generateJDAligned(candidate.id); setGenerating(false); stopAI && stopAI();
+    if (!candidate) return;
+    setGenerating(true);
+    startAI && startAI("Queuing JD alignment for " + (candidate.name||"candidate") + "...");
+    const res = await api.generateJDAligned(candidate.id);
     if (res.success) {
-      const stats = {skills:res.added_skills||0,projects:res.added_projects||0,scoreBefore:res.score_before||0,scoreAfter:res.score_after||0,semBefore:res.sem_score_before??null,semAfter:res.sem_score_after??null,rephrased:res.rephrased_count||0};
-      setDraftText(res.draft_resume); setGenerated(true); setGenStats(stats);
-      if (setAlignState) setAlignState({draftText:res.draft_resume,genStats:stats,candidateId:candidate.id});
-      const updated = await api.getCandidate(candidate.id); setCandidate(updated);
-    } else alert("Generation failed: "+(res.error||"Error"));
+      setCandidate(prev => ({...prev, status:"Processing"}));
+      // Poll until Processing is done then load results
+      const poll = setInterval(async () => {
+        const updated = await api.getCandidate(candidate.id);
+        if (updated && updated.status !== "Processing") {
+          clearInterval(poll);
+          setGenerating(false); stopAI && stopAI();
+          setCandidate(updated);
+          // Load align history to get draft
+          const hist = updated.align_history ? JSON.parse(updated.align_history) : [];
+          if (hist.length > 0) {
+            const last = hist[hist.length-1];
+            const stats = {skills:last.added_skills||0,projects:last.added_projects||0,scoreBefore:last.score_before||0,scoreAfter:last.score_after||0,semBefore:last.sem_score_before??null,semAfter:last.sem_score_after??null,rephrased:last.rephrased_count||0};
+            setGenStats(stats); setGenerated(true);
+          }
+          // Reload full candidate to get draft text
+          const full = await api.getCandidate(candidate.id);
+          if (full) { setDraftText(full.manual_resume_text||full.improved_resume_text||""); }
+        }
+      }, 3000);
+    } else {
+      setGenerating(false); stopAI && stopAI();
+      alert("Generation failed: "+(res.error||"Error"));
+    }
   };
 
   const handleSave = async () => {

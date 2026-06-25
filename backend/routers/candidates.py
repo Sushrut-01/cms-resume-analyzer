@@ -341,95 +341,91 @@ def analyze_candidate(candidate_id: int, background_tasks: BackgroundTasks, db: 
 # Each run is logged in align_history so recruiters can compare runs.
 # PII stripping happens inside generate_aligned_resume() before the AI call.
 # -----------------------------------------------------------------------------
-@router.post("/{candidate_id}/generate-jd-aligned-resume")
-def generate_jd_aligned(candidate_id: int, db: Session = Depends(get_db), current_user=Depends(get_current_user)):
-    c = _get_candidate(db, candidate_id, current_user)
-    if not c:
-        raise HTTPException(status_code=404, detail="Candidate not found")
-
-    # Analysis must be completed before JD alignment — alignment uses AI score,
-    # gaps, and strengths from analysis to decide what to rewrite.
-    if c.status not in ("Bot Analyzed", "Approved"):
-        raise HTTPException(
-            status_code=400,
-            detail="Resume must be analyzed before JD alignment. Please run Analyze first.",
-        )
-
-    if not c.client_requirement:
-        raise HTTPException(
-            status_code=400,
-            detail="Client requirement (JD) is not selected",
-        )
-
-    if not check_ollama_status():
-        raise HTTPException(status_code=503, detail="Ollama LLM is not running")
-
-    # Run JD alignment — PII stripped inside this function
-    result = generate_aligned_resume(
-        resume_text=c.original_resume_text,
-        jd_text=c.client_requirement.jd_text,
-    )
-
-    if not result.get("success"):
-        raise HTTPException(
-            status_code=500,
-            detail=result.get("error", "JD alignment failed"),
-        )
-
-    draft = result["draft"]
-    score_before      = result.get("score_before", 0)
-    score_after       = result.get("score_after",  0)
-    added_skills      = result.get("added_skills", 0)
-    added_projects    = result.get("added_projects", 0)
-    sem_score_before  = result.get("sem_score_before")
-    sem_score_after   = result.get("sem_score_after")
-    rephrased_count   = result.get("rephrased_count", 0)
-    soft_gap_count    = result.get("soft_gap_count", 0)
-
-    # Append this run to the candidate's alignment history (kept for comparison)
-    history = _safe_json(c.align_history)
-    history.append({
-        "run":              len(history) + 1,
-        "timestamp":        datetime.utcnow().strftime("%Y-%m-%d %H:%M"),
-        "score_before":     score_before,
-        "score_after":      score_after,
-        "added_skills":     added_skills,
-        "added_projects":   added_projects,
-        "sem_score_before": sem_score_before,
-        "sem_score_after":  sem_score_after,
-        "rephrased_count":  rephrased_count,
-        "soft_gap_count":   soft_gap_count,
-    })
-    c.align_history = json.dumps(history)
-    c.resume_version_type = "JD_ALIGNED"
-    c.updated_at = datetime.utcnow()
-    if result.get("structured_resume_json"):
-        c.structured_resume_json = result["structured_resume_json"]
-
-    # Save a version snapshot of the JD-aligned resume
-    db.add(
-        ResumeVersion(
+def _run_jd_align_background(candidate_id: int, user_id: int = None, user_email: str = None):
+    """Background thread: runs JD alignment and saves results. Queued via lock."""
+    db = SessionLocal()
+    try:
+        c = db.query(Candidate).filter(Candidate.id == candidate_id).first()
+        if not c or c.status != "Processing":
+            return
+        with _ollama_lock:
+            db.refresh(c)
+            if c.status != "Processing":
+                return
+            result = generate_aligned_resume(
+                resume_text=c.original_resume_text,
+                jd_text=c.client_requirement.jd_text,
+                user_id=user_id,
+                user_email=user_email,
+                candidate_id=candidate_id,
+            )
+        if not result.get("success"):
+            c.status = "Bot Analyzed"
+            db.commit()
+            return
+        draft = result["draft"]
+        history = _safe_json(c.align_history)
+        history.append({
+            "run":              len(history) + 1,
+            "timestamp":        datetime.utcnow().strftime("%Y-%m-%d %H:%M"),
+            "score_before":     result.get("score_before", 0),
+            "score_after":      result.get("score_after", 0),
+            "added_skills":     result.get("added_skills", 0),
+            "added_projects":   result.get("added_projects", 0),
+            "sem_score_before": result.get("sem_score_before"),
+            "sem_score_after":  result.get("sem_score_after"),
+            "rephrased_count":  result.get("rephrased_count", 0),
+            "soft_gap_count":   result.get("soft_gap_count", 0),
+        })
+        c.align_history        = json.dumps(history)
+        c.resume_version_type  = "JD_ALIGNED"
+        c.status               = "Bot Analyzed"
+        c.updated_at           = datetime.utcnow()
+        if result.get("structured_resume_json"):
+            c.structured_resume_json = result["structured_resume_json"]
+        db.add(ResumeVersion(
             candidate_id=c.id,
             version_type="JD_ALIGNED",
             content=draft,
             linked_jd_id=c.client_requirement.id,
-        )
-    )
+        ))
+        db.commit()
+    except Exception:
+        try:
+            c = db.query(Candidate).filter(Candidate.id == candidate_id).first()
+            if c and c.status == "Processing":
+                c.status = "Bot Analyzed"
+                db.commit()
+        except Exception:
+            pass
+    finally:
+        db.close()
+
+
+@router.post("/{candidate_id}/generate-jd-aligned-resume")
+def generate_jd_aligned(candidate_id: int, background_tasks: BackgroundTasks, db: Session = Depends(get_db), current_user=Depends(get_current_user)):
+    c = _get_candidate(db, candidate_id, current_user)
+    if not c:
+        raise HTTPException(status_code=404, detail="Candidate not found")
+
+    if c.status not in ("Bot Analyzed", "Approved"):
+        raise HTTPException(status_code=400, detail="Resume must be analyzed before JD alignment.")
+
+    if not c.client_requirement:
+        raise HTTPException(status_code=400, detail="Client requirement (JD) is not selected")
+
+    if not check_ollama_status():
+        raise HTTPException(status_code=503, detail="Ollama is not running")
+
+    if c.status == "Processing":
+        return {"success": True, "queued": True, "message": "Already in progress"}
+
+    c.status = "Processing"
+    c.updated_at = datetime.utcnow()
     db.commit()
 
-    return {
-        "success":          True,
-        "draft_resume":     draft,
-        "added_skills":     added_skills,
-        "added_projects":   added_projects,
-        "score_before":     score_before,
-        "score_after":      score_after,
-        "sem_score_before": sem_score_before,
-        "sem_score_after":  sem_score_after,
-        "rephrased_count":  rephrased_count,
-        "soft_gap_count":   soft_gap_count,
-        "align_history":    history,
-    }
+    background_tasks.add_task(_run_jd_align_background, candidate_id, current_user.id, current_user.email)
+    return {"success": True, "queued": True, "message": "JD alignment started — results will appear shortly"}
 
 
 # -----------------------------------------------------------------------------
