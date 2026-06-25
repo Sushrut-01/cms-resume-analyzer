@@ -2390,20 +2390,31 @@ function ModelManager({ ollamaUrl, activeModel, onModelChange }) {
       const r = await authFetch(`${API}/settings/ollama/pull`, { method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify({name:modelName}) });
       const data = await r.json();
       if (data.success) {
-        setPullPhase("done"); setPullMsg(`${modelName} is ready!`);
-        onModelChange(modelName);
-        loadStatus();
+        setPullPhase("downloading");
+        setPullMsg(`Downloading ${modelName} in background — this may take 20-40 minutes for large models. Watch the RAM monitor and installed models list below — it will appear automatically when ready.`);
         setPullModel("");
-        showToast(`✅ ${modelName} installed and activated!`, true);
+        // Poll until model appears in installed list
+        const poll = setInterval(async () => {
+          const res = await authFetch(`${API}/settings/system-status`).then(r=>r.json()).catch(()=>null);
+          if (res && res.installed && res.installed.some(m=>m.name===modelName||m.name.startsWith(modelName.split(":")[0]))) {
+            clearInterval(poll);
+            setPullPhase("done"); setPullMsg(`✅ ${modelName} is ready!`);
+            onModelChange(modelName);
+            loadStatus();
+            showToast(`✅ ${modelName} installed and activated!`, true);
+            setPulling(false);
+          }
+        }, 5000);
       } else {
         setPullPhase("error"); setPullMsg(data.error || "Pull failed — check model name and try again");
         showToast("❌ Model pull failed", false);
+        setPulling(false);
       }
     } catch(e) {
       setPullPhase("error"); setPullMsg("Cannot reach server — make sure Ollama is running on this machine");
       showToast("❌ Pull failed", false);
+      setPulling(false);
     }
-    setPulling(false);
   };
 
   const handleUninstall = async (modelName) => {

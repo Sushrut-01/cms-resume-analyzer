@@ -17,7 +17,7 @@
 # Full key values never leave the server after being saved.
 # =============================================================================
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, BackgroundTasks
 import requests
 import psutil
 import ai_config
@@ -246,23 +246,26 @@ def ollama_tags(_=Depends(require_admin)):
 
 
 @router.post("/ollama/pull")
-def ollama_pull(payload: dict, _=Depends(require_admin)):
+def ollama_pull(payload: dict, background_tasks: BackgroundTasks, _=Depends(require_admin)):
     cfg = ai_config.load()
     url = cfg.get("ollama_url", "http://localhost:11434")
     model = payload.get("name", "")
     if not model:
         return {"success": False, "error": "Model name required"}
-    try:
-        r = requests.post(f"{url}/api/pull",
-                          json={"name": model, "stream": False},
-                          timeout=1800)  # 30 min timeout for large models
-        if r.status_code == 200:
-            # Save new model as active
-            ai_config.save({"ollama_model": model})
-            return {"success": True, "model": model}
-        return {"success": False, "error": f"Ollama returned HTTP {r.status_code}"}
-    except Exception as e:
-        return {"success": False, "error": str(e)}
+
+    def _do_pull(model_name: str, ollama_url: str):
+        try:
+            r = requests.post(f"{ollama_url}/api/pull",
+                              json={"name": model_name, "stream": False},
+                              timeout=7200)  # 2 hour timeout for large models
+            if r.status_code == 200:
+                ai_config.save({"ollama_model": model_name})
+        except Exception:
+            pass
+
+    background_tasks.add_task(_do_pull, model, url)
+    return {"success": True, "queued": True, "model": model,
+            "message": f"Downloading {model} in background — watch RAM monitor, model appears when ready"}
 
 
 @router.delete("/ollama/delete")
