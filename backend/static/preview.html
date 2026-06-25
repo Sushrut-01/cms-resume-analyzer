@@ -2327,7 +2327,7 @@ function AILogViewer() {
                   <td style={{ padding:"8px 12px" }}>
                     <span style={{ background:statusBg(l.status), color:statusColor(l.status), padding:"3px 10px", borderRadius:6, fontWeight:700, fontSize:10 }}>{l.status}</span>
                   </td>
-                  <td style={{ padding:"8px 12px", color:l.extra?.includes("error")??"#ef4444":C.muted, maxWidth:220, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap", fontSize:11 }} title={l.extra}>
+                  <td style={{ padding:"8px 12px", color:(l.extra&&l.extra.includes("error"))?"#ef4444":C.muted, maxWidth:220, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap", fontSize:11 }} title={l.extra}>
                     {l.extra||"—"}
                   </td>
                 </tr>
