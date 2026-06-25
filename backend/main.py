@@ -213,15 +213,21 @@ STATIC_DIR = BASE_DIR / "static"
 
 app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
 
-_NO_CACHE = {"Cache-Control": "no-cache, no-store, must-revalidate", "Pragma": "no-cache", "Expires": "0"}
-
 @app.get("/")
 def serve_frontend():
-    return FileResponse(STATIC_DIR / "index.html", headers=_NO_CACHE)
+    return FileResponse(STATIC_DIR / "index.html")
 
-@app.get("/static/preview.html")
-def serve_preview():
-    return FileResponse(STATIC_DIR / "preview.html", headers=_NO_CACHE)
+# Middleware — add no-cache headers to all HTML responses so browsers
+# always fetch the latest version instead of returning 304 Not Modified
+@app.middleware("http")
+async def no_cache_html(request: Request, call_next):
+    response = await call_next(request)
+    path = request.url.path
+    if path.endswith(".html") or path == "/":
+        response.headers["Cache-Control"] = "no-cache, no-store, must-revalidate"
+        response.headers["Pragma"]        = "no-cache"
+        response.headers["Expires"]       = "0"
+    return response
 
 # -----------------------------------------------------------------------------
 # Health Check
