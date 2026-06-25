@@ -19,6 +19,7 @@
 
 from fastapi import APIRouter, Depends
 import requests
+import psutil
 import ai_config
 from deps import get_current_user, require_admin
 from services.llm_service import get_domain_coverage
@@ -131,4 +132,59 @@ def semantic_status(_=Depends(get_current_user)):
         "tier":      tier,
         "label":     tier_labels.get(tier, tier),
         "install":   "pip install sentence-transformers" if not available else None,
+    }
+
+
+# -----------------------------------------------------------------------------
+# GET /settings/system-status — RAM, active Ollama model, installed models
+# Polled every 2s by the Model Manager UI for real-time RAM display.
+# -----------------------------------------------------------------------------
+@router.get("/system-status")
+def system_status(_=Depends(require_admin)):
+    cfg = ai_config.load()
+    ollama_url = cfg.get("ollama_url", "http://localhost:11434")
+
+    # RAM from OS
+    ram = psutil.virtual_memory()
+    ram_total_gb = round(ram.total / 1e9, 1)
+    ram_used_gb  = round(ram.used  / 1e9, 1)
+    ram_free_gb  = round(ram.available / 1e9, 1)
+    ram_percent  = ram.percent
+
+    # Currently loaded model in Ollama (from /api/ps — shows running models)
+    loaded_model = None
+    try:
+        ps = requests.get(f"{ollama_url}/api/ps", timeout=3)
+        if ps.status_code == 200:
+            models_running = ps.json().get("models", [])
+            if models_running:
+                loaded_model = models_running[0].get("name", "")
+    except Exception:
+        pass
+
+    # All installed models (downloaded, not necessarily running)
+    installed = []
+    try:
+        tags = requests.get(f"{ollama_url}/api/tags", timeout=3)
+        if tags.status_code == 200:
+            installed = [
+                {
+                    "name": m.get("name", ""),
+                    "size_gb": round(m.get("size", 0) / 1e9, 1),
+                }
+                for m in tags.json().get("models", [])
+            ]
+    except Exception:
+        pass
+
+    return {
+        "ram": {
+            "total_gb":  ram_total_gb,
+            "used_gb":   ram_used_gb,
+            "free_gb":   ram_free_gb,
+            "percent":   ram_percent,
+        },
+        "loaded_model": loaded_model,
+        "installed":    installed,
+        "active_config": cfg.get("ollama_model", ""),
     }

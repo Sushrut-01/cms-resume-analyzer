@@ -14,8 +14,11 @@ pymupdf>=1.24.0              # fitz — fast PDF text extraction
 # Word document generation
 python-docx>=1.1.0
 
-# HTTP calls (Ollama / Gemini / Azure OpenAI)
+# HTTP calls (Ollama)
 requests>=2.31.0
+
+# System RAM monitoring
+psutil>=5.9.0
 
 # Environment variables
 python-dotenv>=1.0.0
